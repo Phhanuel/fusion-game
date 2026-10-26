@@ -355,7 +355,10 @@ function trackPieces(r){
   // (une pose ajoute toujours au moins une relique, même avec fusion) → le marteau passe à « utilisé » tout seul
   if(fresh&&prevBoard&&lastT&&lastT.b===bstr(prevBoard)){
     const d=r.board.map((l,i)=>l!==prevBoard[i]?i:-1).filter(i=>i>=0);
-    if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0){
+    // la relique doit être là depuis au moins 2 tours enregistrés : au 1er tour d'une partie, un N1 lu en double
+    // pendant l'animation avait fait passer le marteau à « utilisé » pour toute la partie
+    const T=curGame.turns,before=T.length>=2?T[T.length-2].b:null;
+    if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0&&before&&before[d[0]]===lastT.b[d[0]]){
       if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il ne sera plus proposé avant la prochaine partie.');}
       lastT.hammer=d[0];delete lastT.adv;delete lastT.f;}}
   if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
