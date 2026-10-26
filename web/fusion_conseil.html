@@ -342,7 +342,10 @@ function solveHammer(board,cur,nxt,maxReached,dist,anc){
   let best=null;
   for(let i=0;i<N;i++){if(!board[i]||board[i]>MAXL)continue;
     const b=board.slice();b[i]=0;const o=solve(b,cur,nxt,maxReached,null,anc);const x=o.list&&o.list[0];if(!x)continue;
-    const v=x.dead?-1e6+x.score:x.score;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
+    // une relique détruite coûte ce qu'il a fallu de fusions pour la créer : sans ce coût, le conseil sacrifiait
+    // un N9 isolé (aucun bonus de paire) plutôt qu'un N6 ou un N7, alors que les deux sauvaient la partie
+    const cost=board[i]>=5?15*Math.pow(2,board[i]-2):0;
+    const v=x.dead?-1e6+x.score:x.score-cost;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
   return best;
 }
 // clé d'une pièce indépendante de sa rotation et de sa position
@@ -700,7 +703,10 @@ function solveHammer(board,cur,nxt,maxReached,dist,anc){
   let best=null;
   for(let i=0;i<N;i++){if(!board[i]||board[i]>MAXL)continue;
     const b=board.slice();b[i]=0;const o=solve(b,cur,nxt,maxReached,null,anc);const x=o.list&&o.list[0];if(!x)continue;
-    const v=x.dead?-1e6+x.score:x.score;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
+    // une relique détruite coûte ce qu'il a fallu de fusions pour la créer : sans ce coût, le conseil sacrifiait
+    // un N9 isolé (aucun bonus de paire) plutôt qu'un N6 ou un N7, alors que les deux sauvaient la partie
+    const cost=board[i]>=5?15*Math.pow(2,board[i]-2):0;
+    const v=x.dead?-1e6+x.score:x.score-cost;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
   return best;
 }
 // clé d'une pièce indépendante de sa rotation et de sa position
