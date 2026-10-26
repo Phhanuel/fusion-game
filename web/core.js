@@ -331,17 +331,20 @@ function readPiece(img,rect,refs,minW,expT,mode){
 }
 // le cadre de la pièce suivante est petit : on lit un peu au-delà pour ne pas couper une colonne de 3 tuiles
 const grow=(r,f)=>{const dx=(r[2]-r[0])*f,dy=(r[3]-r[1])*f;return [r[0]-dx,r[1]-dy,r[2]+dx,r[3]+dy];};
-function readAll(img,cfg,refs,smallRefs){
+// dead : niveaux qui ne sortent plus (une pièce n'en contient jamais) ; sans ce filtre, les petites tuiles N4
+// de la pièce suivante étaient lues N3 une fois sur six en fin de partie
+function readAll(img,cfg,refs,smallRefs,dead){
   const g=boardGeom(cfg),board=[],unknown=[],cells=[];
   g.centers.forEach(([cx,cy])=>{const c=classify(img,cx,cy,g.size,refs);
     cells.push({cx,cy,size:g.size,l:c.l,d:c.d});
     if(c.l===null){unknown.push({cx,cy,size:g.size});board.push(BLOCK);}else board.push(c.l);});
   const minW=0.2*g.size;
-  const c=readPiece(img,cfg.cur,refs,minW,0.86*g.size),n=readPiece(img,grow(cfg.next,0.15),mergeRefs(refs,smallRefs),minW,0.38*g.size,'bright');
+  const live=withoutLevels(refs,dead),c=readPiece(img,cfg.cur,live,minW,0.86*g.size),n=readPiece(img,grow(cfg.next,0.15),withoutLevels(mergeRefs(refs,smallRefs),dead),minW,0.38*g.size,'bright');
   return {board,cur:c.piece,nxt:n.piece,curAnchor:c.anchor,nxtAnchor:n.anchor,unknown,curUnknown:c.unknown.length,nxtUnknown:n.unknown.length,curBad:!!c.bad,nxtBad:!!n.bad,
           cells,curTiles:c.tiles,nxtTiles:n.tiles};
 }
 // petites tuiles de la pièce suivante : on ajoute les références apprises à cette taille
+function withoutLevels(r,dead){if(!dead||!dead.size)return r;const o={};for(const k in r)if(!dead.has(+k))o[k]=r[k];return o;}
 function mergeRefs(a,b){if(!b)return a;const o={};for(const k in a)o[k]=a[k];for(const k in b)o[k]=(o[k]||[]).concat(b[k]);return o;}
 // tuile la plus probable dans une image collée (capture d'un objet)
 function tileFromImage(img){

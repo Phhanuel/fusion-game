@@ -336,7 +336,7 @@ function process(img){
   if(paused||!cfg||!$('ov').hidden)return;
   if(img.width!==cfg.w||img.height!==cfg.h){$('rot').textContent='—';$('info').textContent='La taille de la fenêtre du jeu a changé : recalibre.';$('info').className='err';return;}
   const t0=performance.now();
-  const r=readAll(img,cfg,levels,smallRefs);
+  const r=readAll(img,cfg,levels,smallRefs,DEAD);
   const sig=JSON.stringify([r.board,r.cur,r.nxt,r.curUnknown,r.nxtUnknown,r.curAnchor,r.nxtAnchor]);
   // fin d'animation : la même lecture doit durer au moins STABLE_MS (et pas seulement 2 images d'affilée :
   // à 7 lectures par seconde, la pièce suivante était parfois lue pendant qu'elle glissait dans son cadre)
