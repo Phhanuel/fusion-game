@@ -151,8 +151,8 @@ class OverlayService : Service() {
     private fun showOverlay() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val d = resources.displayMetrics.density
-        compactW = (360 * d).toInt().coerceAtMost(resources.displayMetrics.widthPixels)
-        compactH = (230 * d).toInt()
+        compactW = (320 * d).toInt().coerceAtMost(resources.displayMetrics.widthPixels)
+        compactH = (200 * d).toInt()
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
