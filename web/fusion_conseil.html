@@ -1,0 +1,1342 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fusion Conseil</title>
+<style>
+/* Mise en page : commandes + niveaux à gauche, panneau de conseil à droite (détachable en fenêtre flottante) */
+:root{
+  --bg:#1a1310; --panel:#261d18; --well:#130e0b; --line:#3d2f26;
+  --fg:#f1e6d2; --muted:#a8937a; --accent:#f2b632; --warn:#e8664a;
+  --body:"Segoe UI",system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px}
+.wrap{max-width:1020px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:780px){.wrap{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+h1{margin:0 0 4px;font-size:24px;color:var(--accent)}
+.sub{margin:0;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:700;margin:0 0 8px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{border:0;border-radius:10px;padding:9px 13px;font:700 13px var(--body);cursor:pointer;background:var(--line);color:var(--fg)}
+button.primary{background:var(--accent);color:#2a1a05}
+button.small{padding:6px 9px;font-size:12px;border-radius:8px}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{color:var(--muted);font-size:13px;margin:8px 0 0;min-height:1.2em}
+.status.err{color:var(--warn)}
+.levels{display:flex;flex-direction:column;gap:6px}
+.lv{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;background:var(--well);border-radius:10px;padding:6px 8px;border:2px solid transparent}
+.lv.target{border-color:var(--accent)}
+.lv .n{font-weight:800;font-size:15px;text-align:center;border-radius:8px;padding:4px 0;color:#fff}
+.thumbs{display:flex;gap:4px;flex-wrap:wrap;min-height:36px;align-items:center}
+.thumbs img{width:36px;height:36px;border-radius:6px;image-rendering:auto}
+.thumbs .none{color:var(--muted);font-size:12px}
+.lv .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.lv.dead .n{opacity:.45;text-decoration:line-through}
+.state{font-size:11px;color:var(--muted);white-space:nowrap}
+.state b{color:var(--fg)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:0 0 10px}
+.stat{background:var(--well);border-radius:10px;padding:8px}
+.stat b{display:block;font-size:18px;color:var(--fg);font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;color:var(--muted)}
+.pieces{font-size:12px;color:var(--muted);line-height:1.6;margin:0}
+.pieces b{color:var(--fg);font-variant-numeric:tabular-nums}
+.hint{font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.45}
+#advice{display:flex;flex-direction:column;gap:8px;background:var(--bg);padding:10px;border-radius:12px}
+.adv-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#rot{font-size:24px;font-weight:800;color:var(--accent);margin:0}
+#info{font-size:13px;line-height:1.4;margin:0;white-space:pre-line}
+#info.err{color:var(--warn)}
+#boardCv{width:100%;max-width:320px;aspect-ratio:1/1;align-self:center}
+#pieceCv{width:96px;height:80px;flex:none}
+/* rappel de la zone des pièces du jeu : pièce actuelle telle qu'affichée + cadre de la pièce suivante */
+.seen{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#4a3f30;border-radius:10px;padding:6px 10px}
+.seen figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.seen figcaption{font-size:11px;color:#e6d9c0;letter-spacing:.04em}
+#curCv{width:120px;height:80px}
+#nxtCv{width:64px;height:64px;background:#231b14;border-radius:10px}
+#advStatus{font-size:12px;color:var(--muted);margin:0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px;z-index:8}
+.overlay p{margin:0;color:var(--accent);font-weight:800;font-size:16px;text-align:center}
+.overlay canvas{max-width:100%;max-height:calc(100vh - 120px);cursor:crosshair;border:1px solid var(--line)}
+details{color:var(--muted);line-height:1.5}
+details summary{color:var(--fg);font-weight:700;cursor:pointer}
+/* vidéo gardée dans la page (invisible) : sert de secours si la lecture directe des images n'existe pas */
+video{position:fixed;left:0;top:0;width:4px;height:4px;opacity:0;pointer-events:none}
+/* Appli Android : la page s'affiche dans une petite fenêtre par-dessus le jeu (vue compacte),
+   ou en plein écran pour les réglages et le calibrage (vue complète) */
+#bMenu{display:none}
+body.android #bShare,body.android #bPip{display:none}
+body.android #bMenu{display:inline-block;position:absolute;right:6px;top:6px;padding:4px 9px;font-size:13px;z-index:2}
+body.android .wrap{padding:8px;display:block}
+body.android .wrap>.col{margin-bottom:12px}
+body.android.compact .wrap{padding:0}
+body.android.compact .wrap>.col,body.android.compact #advHome>.lbl{display:none}
+body.android.compact #advHome{padding:0;border:0;border-radius:0;background:var(--bg)}
+body.android.compact #advice{position:relative;display:grid;grid-template-columns:44% 1fr;grid-template-areas:"board top" "board info" "status status";gap:2px 8px;padding:4px 6px;border-radius:0}
+body.android.compact .seen{display:none}
+body.android.compact #boardCv{grid-area:board;max-width:100%;width:100%}
+body.android.compact .adv-top{grid-area:top;padding-right:44px}
+body.android.compact #rot{font-size:17px}
+body.android.compact #pieceCv{width:64px;height:54px}
+body.android.compact #info{grid-area:info;font-size:11px;line-height:1.3}
+body.android.compact #advStatus{grid-area:status;font-size:10px}
+body.android:not(.compact) #advHome{margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="col">
+    <header>
+      <h1>Fusion Conseil</h1>
+      <p class="sub">Lit la fenêtre du jeu et affiche le meilleur coup en direct. Rien à installer.</p>
+    </header>
+
+    <section class="panel">
+      <p class="lbl">Commandes</p>
+      <div class="btns">
+        <button class="primary" id="bShare">1 · Choisir la fenêtre du jeu</button>
+        <button id="bCalib" disabled>2 · Calibrer</button>
+        <button id="bPip" disabled>Fenêtre flottante</button>
+        <button id="bPause" disabled>Pause</button>
+        <button id="bHammer" title="Le marteau détruit une relique, une fois par partie. Clique quand tu l'as utilisé.">Marteau : disponible</button>
+        <button id="bGoal" title="Survie : tenir le plus longtemps. Viser N10 : regroupe davantage les hauts niveaux, plus risqué.">Objectif : survie</button>
+      </div>
+      <p class="status" id="status">Commence par choisir la fenêtre du jeu (onglet « Fenêtre »).</p>
+    </section>
+
+    <section class="panel">
+      <p class="lbl">Niveaux reconnus</p>
+      <p class="hint">Chaque niveau est reconnu à partir de captures d'un de ses objets. Pour en ajouter une : <b>Coller</b> (fais une capture de l'objet avec Win+Maj+S, puis Ctrl+V), <b>Fichier</b> (une image), ou <b>Dans le jeu</b> (clique directement sur l'objet dans l'image du jeu).</p>
+      <p class="hint" id="histInfo"></p>
+      <div class="levels" id="levels"></div>
+      <input type="file" id="fileIn" accept="image/*" hidden>
+    </section>
+
+    <section class="panel">
+      <p class="lbl">Parties enregistrées</p>
+      <div id="games"></div>
+      <div class="btns" style="margin-top:10px">
+        <button class="small" id="gNew">Terminer la partie en cours</button>
+        <button class="small" id="gExport">Exporter (JSON)</button>
+        <button class="small" id="gImport">Importer</button>
+        <button class="small" id="gClear">Tout effacer</button>
+      </div>
+      <input type="file" id="gFile" accept=".json,application/json" hidden>
+    </section>
+
+    <details class="panel">
+      <summary>Mode d'emploi</summary>
+      <ol>
+        <li>Ouvre ce fichier dans Chrome ou Edge, lance le jeu en mode fenêtré.</li>
+        <li><b>Choisir la fenêtre du jeu</b>, onglet « Fenêtre ». Si le jeu n'apparaît pas, prends « Écran entier ».</li>
+        <li><b>Calibrer</b> : 6 clics (plateau, zone de la pièce actuelle, cadre de la pièce suivante), puis vérifie l'aperçu et Valide.</li>
+        <li><b>Fenêtre flottante</b> : le conseil passe dans une petite fenêtre toujours au premier plan.</li>
+        <li><b>Marteau</b> : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau doit servir un coup avant. Quand aucun coup ne laisse de place à la pièce suivante, le conseil indique la relique à détruire (✕). Clique sur « Marteau : disponible » une fois utilisé ; il se réactive à la partie suivante.</li>
+        <li><b>Point blanc</b> : le jeu marque d'un point la tuile de la pièce où la fusion aura lieu. L'outil le lit et le reproduit sur la pièce conseillée : la rotation tient compte de l'endroit où tombera la fusion.</li>
+        <li><b>Case ★</b> : si le point n'a pas pu être lu, l'étoile indique la meilleure case pour une fusion incertaine.</li>
+        <li>Le plus haut niveau obtenu est suivi automatiquement : dès le premier N5, les N1 deviennent de la poubelle, puis N6 → N2 et N7 → N3. Le N4 continue de sortir ensuite.</li>
+        <li>Un « ? » sur le plateau ou dans la pièce = objet non reconnu : ajoute une capture de cet objet à son niveau.</li>
+      </ol>
+      <p>Règles : fusion de 3 ou 4 → +1 niveau, 5 ou plus → +2 niveaux, objet créé sur la case jouée, fusions en chaîne, 10 niveaux, fin de partie si la pièce ne rentre plus. Rotation : 60° horaire par appui. Calcul sur 2 tours.</p>
+    </details>
+  </div>
+
+  <section class="panel" id="advHome">
+    <p class="lbl">Conseil</p>
+    <div id="advice">
+      <button id="bMenu" aria-label="Réglages">⚙</button>
+      <div class="seen" aria-label="Pièces lues dans le jeu">
+        <figure><canvas id="curCv" width="240" height="160"></canvas><figcaption>Pièce actuelle (lue)</figcaption></figure>
+        <figure><canvas id="nxtCv" width="128" height="128"></canvas><figcaption>Suivante</figcaption></figure>
+      </div>
+      <div class="adv-top"><p id="rot">—</p><canvas id="pieceCv" width="192" height="160"></canvas></div>
+      <p id="info"></p>
+      <canvas id="boardCv" width="640" height="640"></canvas>
+      <p id="advStatus"></p>
+    </div>
+  </section>
+</div>
+
+<video id="video" autoplay muted playsinline></video>
+<div class="overlay" id="ov" hidden>
+  <p id="ovTxt"></p><canvas id="ovCv"></canvas>
+  <div class="btns"><button class="primary" id="ovOk" hidden>Valider</button><button id="ovRedo">Recommencer</button><button id="ovCancel">Annuler</button></div>
+</div>
+
+<script type="text/plain" id="coreSrc">/* ================= SOLVEUR ================= */
+const MAXL=10, BLOCK=99;           // BLOCK : case occupée par un objet non reconnu
+const CELLS=[],IDX={};const K=(q,r)=>q+','+r;
+for(let c=0;c<5;c++){const n=c%2?4:5;for(let row=0;row<n;row++){const q=c,r=row-((c-(c&1))>>1);IDX[K(q,r)]=CELLS.length;CELLS.push({c,row,q,r});}}
+const N=CELLS.length;
+const DIRS=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+const NB=CELLS.map(o=>DIRS.map(d=>IDX[K(o.q+d[0],o.r+d[1])]).filter(x=>x!==undefined));
+const rot1=p=>[-p[1],p[0]+p[1],p[2]];   // 60° horaire à l'écran
+function rotations(piece,anchor){
+  const out=[],seen=new Set();let s=piece;
+  for(let k=0;k<6;k++){if(k)s=s.map(rot1);
+    const mq=Math.min(...s.map(p=>p[0])),mr=Math.min(...s.map(p=>p[1]));
+    const sig=s.map((p,n)=>(p[0]-mq)+':'+(p[1]-mr)+':'+p[2]+(n===anchor?'*':'')).sort().join('|');
+    if(!seen.has(sig)){seen.add(sig);out.push({k,shape:s});}}
+  return out;
+}
+function placements(b,rots){
+  const out=[];
+  for(const R of rots){const s=R.shape,o=s[0];
+    for(let i=0;i<N;i++){const t=[];let ok=true;
+      for(const p of s){const j=IDX[K(CELLS[i].q+p[0]-o[0],CELLS[i].r+p[1]-o[1])];if(j===undefined||b[j]){ok=false;break;}t.push(j);}
+      if(ok)out.push({k:R.k,shape:s,idx:t});}}
+  return out;
+}
+// Où apparaît l'objet fusionné quand 2 ou 3 tuiles de la pièce posée sont dans le même groupe ?
+// Le jeu ne suit aucune règle simple repérée dans les parties enregistrées (la meilleure : 62 %).
+// On suppose donc le cas le moins favorable (la case qui enchaîne le moins de fusions) :
+// le solveur ne parie plus sur une cascade incertaine. Rejeu de 5 parties, case tirée au hasard :
+// 392 tours tenus en moyenne contre 379, et des résultats bien plus réguliers.
+function groupOf(b,a){const l=b[a],g=[a],s=new Set([a]);for(let h=0;h<g.length;h++)for(const n of NB[g[h]])if(!s.has(n)&&b[n]===l){s.add(n);g.push(n);}return g;}
+function cascadeFrom(b,g,dst,l){const nb=b.slice();g.forEach(x=>nb[x]=0);nb[dst]=Math.min(MAXL,l+(g.length>=5?2:1));let n=0;
+  while(nb[dst]<MAXL){const gg=groupOf(nb,dst);if(gg.length<3)break;const t=Math.min(MAXL,nb[dst]+(gg.length>=5?2:1));gg.forEach(x=>nb[x]=0);nb[dst]=t;n++;}return n;}
+// Mise à jour du jeu : un point blanc marque la tuile de la pièce où la fusion aura lieu (anchor = son indice).
+function resolve(b0,pl,anchor){
+  const b=b0.slice();pl.idx.forEach((j,n)=>b[j]=pl.shape[n][2]);
+  const merges=[],queue=pl.idx.slice();let created=-1;
+  while(queue.length){const a=queue.shift(),l=b[a];if(!l||l>=MAXL)continue;
+    const g=groupOf(b,a);
+    if(g.length>=3){let dst=a;
+      const A=anchor!==undefined?pl.idx[anchor]:undefined;
+      if(!g.includes(created)&&A!==undefined&&g.includes(A))dst=A;
+      else if(!g.includes(created)){const C=g.filter(x=>pl.idx.includes(x));if(C.length>1)dst=C.reduce((p,c)=>cascadeFrom(b,g,c,l)<cascadeFrom(b,g,p,l)?c:p);}
+      const to=Math.min(MAXL,l+(g.length>=5?2:1));g.forEach(x=>b[x]=0);b[dst]=to;created=dst;merges.push({l,to,size:g.length,at:dst});queue.unshift(dst);}}
+  return {b,merges};
+}
+// Toutes les issues possibles quand l'emplacement d'une fusion est incertain
+// (2 ou 3 tuiles de la pièce dans le même groupe : le jeu ne suit aucune règle simple repérée).
+function resolveAll(b0,pl,cap=6,anchor){
+  const A=anchor!==undefined?pl.idx[anchor]:undefined;
+  const out=[],seen=new Set();
+  const rec=(b,queue,created,merges)=>{
+    if(out.length>=cap)return;
+    while(queue.length){const a=queue[0],l=b[a];if(!l||l>=MAXL){queue=queue.slice(1);continue;}
+      const g=groupOf(b,a);if(g.length<3){queue=queue.slice(1);continue;}
+      const to=Math.min(MAXL,l+(g.length>=5?2:1));
+      const C=g.includes(created)?[created]:(A!==undefined&&g.includes(A))?[A]:g.filter(x=>pl.idx.includes(x));const D=C.length?C:[a];
+      for(const dst of D){const nb=b.slice();g.forEach(x=>nb[x]=0);nb[dst]=to;
+        rec(nb,[dst,...queue.slice(1).filter(x=>!g.includes(x))],dst,[...merges,{l,to,size:g.length,at:dst}]);}
+      return;}
+    const k=b.join(',');if(!seen.has(k)){seen.add(k);out.push({b,merges});}
+  };
+  const b=b0.slice();pl.idx.forEach((j,n)=>b[j]=pl.shape[n][2]);rec(b,pl.idx.slice(),-1,[]);
+  return out.length?out:[resolve(b0,pl,anchor)];
+}
+const mergePts=m=>m.reduce((s,x,j)=>s+15*Math.pow(2,x.to-2)*(1+0.3*j)-(x.size===4?4:0),0);
+function survival(b){
+  let pair=false;
+  for(let i=0;i<N;i++){if(b[i])continue;
+    for(const n of NB[i]){if(b[n])continue;pair=true;for(const m of NB[n])if(m!==i&&!b[m])return 0;}}
+  return pair?-150:-400;
+}
+// Règle du jeu : dès le premier N5, le N1 ne sort plus ; dès le premier N6, le N2 ; etc.
+// Les objets de ces niveaux ne fusionneront plus jamais (poubelle).
+const _dead={};
+// Observé sur une partie enregistrée : N1 s'arrête au 1er N5, N2 au 1er N6, N3 au 1er N7,
+// mais N4 sort encore après le 1er N8 (les pièces restent entre N4 et N6). D'où le plafond à 3.
+const DEAD_CAP=3;
+function deadFor(maxReached){if(_dead[maxReached])return _dead[maxReached];
+  const d=new Set();for(let l=1;l<=Math.min(maxReached-4,DEAD_CAP);l++)d.add(l);return _dead[maxReached]=d;}
+function evaluate(b,dead){
+  let s=survival(b);
+  for(let i=0;i<N;i++){
+    // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
+    // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
+    // Rejeu de 6 parties (6 tirages) : 515 tours tenus sur 550 en moyenne contre 472 sans ce terme.
+    if(!b[i]){s+=16;let e=0;for(const n of NB[i])if(!b[n])e++;if(e>=2)s+=1.5;s+=e*(e-1)/2;continue;}
+    if(b[i]>MAXL||dead.has(b[i]))continue;   // objet non reconnu ou poubelle : simple case perdue
+    let same=0,empty=0;for(const n of NB[i]){if(b[n]===b[i])same++;if(!b[n])empty++;}
+    // hauts niveaux (N6+) qui se touchent : bonus exponentiel, pour préparer les fusions vers N9/N10
+    // (HI_MULT = 2 : +2,5 % de tours tenus au rejeu de 14 parties ; 4 = mode « viser N10 » : 2x plus de N9 en simulation)
+    const H=b[i]>5?HI_MULT*Math.pow(2,b[i]-5):1;
+    if(same){s+=(2+b[i])*same/2*H;if(empty)s+=2;}else if(!empty)s-=3+b[i];
+  }
+  return s;
+}
+const topLevel=m=>m.reduce((x,y)=>Math.max(x,y.to),0);
+function bestReply(b,rots,max,w,anchor){
+  // meilleur placement d'une pièce connue : {v, merges, b, max} ou null si elle ne rentre pas
+  let best=null;
+  for(const q of placements(b,rots)){const c=resolve(b,q,anchor),m=Math.max(max,topLevel(c.merges));
+    const v=w*mergePts(c.merges)+evaluate(c.b,deadFor(m));
+    if(!best||v>best.v)best={v,merges:c.merges,b:c.b,max:m,mp:w*mergePts(c.merges)};}
+  return best;
+}
+// élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
+let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2;
+function solve(board,cur,nxt,maxReached,dist,anc){
+  anc=anc||{};
+  // maxReached : plus haut niveau déjà obtenu (décide des niveaux poubelle)
+  // dist : pièces probables au 3e tour [{rots, p}] (issues des parties enregistrées), facultatif
+  maxReached=Math.max(maxReached||0,...board.filter(l=>l<=MAXL));
+  if(!cur.length)return {err:'Pièce actuelle non détectée'};
+  const pls=placements(board,rotations(cur,anc.cur));
+  if(!pls.length)return {err:'Partie terminée : la pièce ne rentre plus',over:true};
+  const r2=nxt.length?rotations(nxt,anc.nxt):null;
+  const res=pls.map(pl=>{
+    const a=resolve(board,pl,anc.cur),max1=Math.max(maxReached,topLevel(a.merges));
+    const o={...pl,after:a.b,max1,merges:a.merges,nextMerges:[],dead:false,
+      newDead:[...deadFor(max1)].filter(l=>!deadFor(maxReached).has(l)),m1:mergePts(a.merges)};
+    // issues possibles du coup (une seule le plus souvent) ; le score est leur moyenne
+    o.outs=resolveAll(board,pl,6,anc.cur).map(x=>{const m=Math.max(maxReached,topLevel(x.merges));return {b:x.b,max1:m,m1:mergePts(x.merges),at:(x.merges.find(mm=>pl.idx.includes(mm.at))||{}).at};});
+    let sum=0,deadAll=true;
+    for(const x of o.outs){
+      if(r2){const br=bestReply(x.b,r2,x.max1,0.9,anc.nxt);
+        if(br){x.fut=br.v;if(x.b.join()===a.b.join())o.nextMerges=br.merges;deadAll=false;}else{x.fut=-2000+evaluate(x.b,deadFor(x.max1));o.dead=true;}}
+      else{x.fut=evaluate(x.b,deadFor(x.max1));deadAll=false;}
+      sum+=x.m1+x.fut;}
+    o.uncertain=o.outs.length>1;
+    o.score=sum/o.outs.length-0.01*pl.k;
+    return o;
+  });
+  res.sort((x,y)=>y.score-x.score);
+  let depth=r2?2:1,risk=null;
+  if(r2&&dist&&dist.length){
+    // 3e tour : pour les meilleurs coups, moyenne sur les pièces probables (meilleure réponse à chacune)
+    depth=3;
+    // poses de la pièce suivante classées sur 2 tours (THIRD_TOP permet d'élaguer si besoin)
+    const third=(after,max1)=>{let best=-Infinity,bestRisk=1,nm=[];
+      const cand=placements(after,r2).map(q=>{const c=resolve(after,q,anc.nxt),m2=Math.max(max1,topLevel(c.merges));
+        return {c,m2,v:0.9*mergePts(c.merges)+evaluate(c.b,deadFor(m2))};}).sort((x,y)=>y.v-x.v).slice(0,THIRD_TOP);
+      for(const {c,m2} of cand){
+        let ev=0,blocked=0;
+        // les pièces contenant un niveau devenu poubelle ne peuvent plus sortir : on les retire et on renormalise
+        const dz=deadFor(m2),dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((s,d)=>s+d.p,0)||1;
+        for(const d0 of dd){const d={rots:d0.rots,p:d0.p/mass};const br=bestReply(c.b,d.rots,m2,0.8);
+          if(br)ev+=d.p*br.v;else{ev+=d.p*(-2000+evaluate(c.b,deadFor(m2)));blocked+=d.p;}}
+        const v=0.9*mergePts(c.merges)+ev;
+        if(v>best){best=v;bestRisk=blocked;nm=c.merges;}
+      }
+      return {best,risk:bestRisk,nm};};
+    for(const o of res.slice(0,CAND_TOP)){
+      if(o.dead&&o.outs.every(x=>x.fut<-1000))continue;
+      let s3=0,rk=0;
+      for(const x of o.outs){const t=x.fut<-1000?{best:x.fut,risk:1,nm:[]}:third(x.b,x.max1);x.v3=t.best;
+        s3+=x.m1+t.best;rk+=t.risk;if(x.b.join()===o.after.join()&&t.nm.length)o.nextMerges=t.nm;}
+      o.score3=s3/o.outs.length-0.01*o.k;o.risk=rk/o.outs.length;
+    }
+    const top=res.slice(0,CAND_TOP).filter(o=>o.score3!==undefined).sort((x,y)=>y.score3-x.score3);
+    res.splice(0,CAND_TOP,...top,...res.slice(0,CAND_TOP).filter(o=>o.score3===undefined));
+    risk=res[0].risk??null;
+  }
+  for(const o of res.slice(0,3))if(o.uncertain){
+    const v=x=>x.m1+(x.v3!==undefined?x.v3:x.fut);const bo=o.outs.reduce((a,x)=>v(x)>v(a)?x:a);const wo=o.outs.reduce((a,x)=>v(x)<v(a)?x:a);
+    o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
+  return {list:res.slice(0,3),depth,risk};
+}
+// Marteau (une fois par partie) : quelle relique détruire ? On teste chaque relique puis le meilleur coup qui suit.
+function solveHammer(board,cur,nxt,maxReached,dist,anc){
+  let best=null;
+  for(let i=0;i<N;i++){if(!board[i]||board[i]>MAXL)continue;
+    const b=board.slice();b[i]=0;const o=solve(b,cur,nxt,maxReached,null,anc);const x=o.list&&o.list[0];if(!x)continue;
+    const v=x.dead?-1e6+x.score:x.score;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
+  return best;
+}
+// clé d'une pièce indépendante de sa rotation et de sa position
+function pieceKey(piece){
+  let best=null;
+  let s=piece;for(let k=0;k<6;k++){if(k)s=s.map(rot1);const mq=Math.min(...s.map(p=>p[0])),mr=Math.min(...s.map(p=>p[1]));
+    const key=s.map(p=>[p[0]-mq,p[1]-mr,p[2]]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]).map(p=>p.join(',')).join(';');if(best===null||key<best)best=key;}
+  return best;
+}
+const keyToPiece=k=>k.split(';').map(t=>t.split(',').map(Number));
+const mtxt=m=>m.map(x=>`${x.size}×N${x.l} → N${x.to}`).join(', ');
+
+/* ================= VISION ================= */
+// img = {data (RGBA), width, height}
+const EMPTY_MAX=45;   // contour d'une case vide : très sombre
+let MATCH_MAX=1.15;   // écart max (0 à 2) entre histogrammes pour reconnaître une tuile
+function median(a){a.sort((x,y)=>x-y);return a[a.length>>1];}
+function borderBright(img,cx,cy,size){
+  // luminosité du contour de la tuile (pixels les plus clairs de la bande extérieure) : sombre = case vide
+  const h=size/2,x0=Math.round(cx-h),y0=Math.round(cy-h),x1=x0+Math.floor(size),y1=y0+Math.floor(size);
+  if(x0<0||y0<0||x1>img.width||y1>img.height)return 0;
+  const v=[];const step=size>80?2:1;
+  for(let y=y0;y<y1;y+=step)for(let x=x0;x<x1;x+=step){
+    const d=Math.max(Math.abs(x-cx),Math.abs(y-cy))/h;
+    if(d>0.7&&d<=1.0){const o=(y*img.width+x)*4;v.push(Math.max(img.data[o],img.data[o+1],img.data[o+2]));}}
+  if(!v.length)return 0;
+  v.sort((a,b)=>b-a);return v[Math.floor(v.length*0.12)];
+}
+function colorHist(img,x0,y0,w,h){
+  // empreinte d'une tuile : répartition des couleurs vives (64 cases), indépendante de la taille
+  const out=new Array(64).fill(0);let n=0;const step=Math.max(1,Math.min(w,h)/40);
+  for(let y=y0;y<y0+h;y+=step)for(let x=x0;x<x0+w;x+=step){
+    const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=img.width||yi>=img.height)continue;
+    const o=(yi*img.width+xi)*4,r=img.data[o],g=img.data[o+1],b=img.data[o+2];
+    if(Math.max(r,g,b)<60)continue;out[(r>>6)*16+(g>>6)*4+(b>>6)]++;n++;}
+  return out.map(v=>Math.round(1000*v/(n||1)));
+}
+const tileSig=(img,cx,cy,size)=>colorHist(img,cx-size/2,cy-size/2,size,size);
+function sigDist(a,b){let s=0;for(let i=0;i<64;i++)s+=Math.abs(a[i]-b[i]);return s/1000;}
+function classify(img,cx,cy,size,refs){
+  // -> {l: niveau (0 vide, null inconnu), d: écart}
+  if(borderBright(img,cx,cy,size)<EMPTY_MAX)return {l:0};
+  const sg=tileSig(img,cx,cy,size);let best=1e9,bl=null;
+  for(const lvl in refs)for(const r of refs[lvl]){const d=sigDist(sg,r.h);if(d<best){best=d;bl=+lvl;}}
+  return {l:best<=MATCH_MAX?bl:null,d:best,sig:sg};
+}
+function boardGeom(cfg){
+  const [x1,y1]=cfg.tl,[x2,y2]=cfg.br,dx=(x2-x1)/4,dy=(y2-y1)/4;
+  return {centers:CELLS.map(o=>[x1+o.c*dx,y1+(o.row+(o.c%2)*.5)*dy]),size:0.89*Math.min(dx,dy)};
+}
+const BRIGHT=100;
+function findTiles(img,rect,minW,expT,mode){
+  // mode 'bright' (pièce suivante) : tuiles repérées par leurs contours vifs, quel que soit le fond
+  // sinon (pièce actuelle, captures) : tout ce qui se détache de la couleur dominante de la zone
+  const x0=Math.max(0,Math.floor(rect[0])),y0=Math.max(0,Math.floor(rect[1]));
+  const x1=Math.min(img.width,Math.floor(rect[2])),y1=Math.min(img.height,Math.floor(rect[3]));
+  const W=x1-x0,H=y1-y0;if(W<4||H<4)return [];
+  const D=img.data,at=(x,y)=>((y0+y)*img.width+x0+x)*4;
+  const m=new Uint8Array(W*H);
+  if(mode==='bright'){
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const o=at(x,y);if(Math.max(D[o],D[o+1],D[o+2])>BRIGHT)m[y*W+x]=1;}
+  }else{
+    const hist=new Map();
+    for(let y=0;y<H;y+=2)for(let x=0;x<W;x+=2){const o=at(x,y);const k=(D[o]>>4)*256+(D[o+1]>>4)*16+(D[o+2]>>4);hist.set(k,(hist.get(k)||0)+1);}
+    let mk=0,mc=-1;for(const [k,c] of hist)if(c>mc){mc=c;mk=k;}
+    const R=[],G=[],B=[];
+    for(let y=0;y<H;y+=2)for(let x=0;x<W;x+=2){const o=at(x,y);if((D[o]>>4)*256+(D[o+1]>>4)*16+(D[o+2]>>4)===mk){R.push(D[o]);G.push(D[o+1]);B.push(D[o+2]);}}
+    const bg=[median(R),median(G),median(B)];
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const o=at(x,y),r=D[o],g=D[o+1],b=D[o+2];
+      const star=r>170&&g>100&&b<110&&r-b>100;   // étoiles jaunes sous les tuiles
+      if(!star&&Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2])>60)m[y*W+x]=1;}
+  }
+  const md=new Uint8Array(W*H),R=mode==='bright'?2:1;   // petites tuiles : on referme davantage les contours
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(!m[y*W+x])continue;
+    for(let yy=Math.max(0,y-R);yy<=Math.min(H-1,y+R);yy++)for(let xx=Math.max(0,x-R);xx<=Math.min(W-1,x+R);xx++)md[yy*W+xx]=1;}
+  // bouche les trous (intérieur sombre des tuiles) : tout ce qui n'est pas relié au bord de la zone
+  const outside=new Uint8Array(W*H),st=[];
+  for(let x=0;x<W;x++){st.push(x,(H-1)*W+x);}for(let y=0;y<H;y++){st.push(y*W,y*W+W-1);}
+  while(st.length){const q=st.pop();if(outside[q]||md[q])continue;outside[q]=1;const x=q%W,y=(q/W)|0;
+    if(x>0)st.push(q-1);if(x<W-1)st.push(q+1);if(y>0)st.push(q-W);if(y<H-1)st.push(q+W);}
+  const fm=new Uint8Array(W*H);for(let p=0;p<W*H;p++)fm[p]=outside[p]?0:1;
+  const lab=new Int32Array(W*H),boxes=[];let id=0;
+  for(let p=0;p<W*H;p++){if(!fm[p]||lab[p])continue;id++;
+    let bx0=W,by0=H,bx1=0,by1=0,n=0;st.push(p);lab[p]=id;
+    while(st.length){const q=st.pop(),x=q%W,y=(q/W)|0;n++;
+      if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y;
+      if(x>0&&fm[q-1]&&!lab[q-1]){lab[q-1]=id;st.push(q-1);}
+      if(x<W-1&&fm[q+1]&&!lab[q+1]){lab[q+1]=id;st.push(q+1);}
+      if(y>0&&fm[q-W]&&!lab[q-W]){lab[q-W]=id;st.push(q-W);}
+      if(y<H-1&&fm[q+W]&&!lab[q+W]){lab[q+W]=id;st.push(q+W);}}
+    boxes.push({id,x:bx0,y:by0,w:bx1-bx0+1,h:by1-by0+1,n});}
+  // une tuile seule est un carré plein ; sinon c'est un groupe de tuiles collées à redécouper
+  const single=b=>b.w>Math.max(12,minW)&&b.h/b.w>0.85&&b.h/b.w<1.25&&b.n>0.8*b.w*b.h&&b.w<0.95*W;
+  let out=[];
+  for(const b of boxes){
+    // la zone contient le cadre sombre lui-même : on cherche les tuiles à l'intérieur du cadre
+    if(single(b))out.push(b);
+    else if(b.w>Math.max(12,minW)&&b.n>0.3*b.w*b.h&&b.w<0.98*W)out.push(...splitBlob(lab,W,b));
+  }
+  if(out.length){const wm=Math.max(...out.map(b=>b.w));out=out.filter(b=>b.w>0.7*wm);}
+  return out.map(b=>({x:x0+b.x,y:y0+b.y,w:b.w}));
+}
+function splitBlob(lab,W,b){
+  // essaie plusieurs tailles de tuile ; garde le découpage qui recouvre le mieux le bloc
+  const inBlob=(x,y)=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h&&lab[y*W+x]===b.id;
+  const fill=(x0,y0,T)=>{let n=0,k=0;const s=Math.max(1,T/12);
+    for(let y=y0+T*.1;y<y0+T*.9;y+=s)for(let x=x0+T*.1;x<x0+T*.9;x+=s){k++;if(inBlob(Math.round(x),Math.round(y)))n++;}return k?n/k:0;};
+  const cands=[];
+  // taille de tuile inconnue : on essaie une plage de tailles autour de celle suggérée par la largeur du bloc
+  for(let c=1;c<=3;c++)for(const ratio of [1.0,1.035,1.07])for(const sc of [0.8,0.85,0.9,0.95,1]){
+    const T=sc*b.w/(1+(c-1)*ratio);if(T<8)continue;
+    const span=T*(1+(c-1)*ratio),ox=(b.w-span)/2;
+    const half=ratio*T/2,h=Math.round((b.h-T)/half);if(h<0||h>4)continue;
+    const oy=(b.h-(T+h*half))/2;if(Math.abs(oy)*2/T>0.3)continue;
+    for(const base of [0,1]){
+      const sel=[];let fs=0;
+      for(let i=0;i<c;i++)for(let j=0;j<=h;j++){if((i+j+base)%2)continue;
+        const x=b.x+ox+i*ratio*T,y=b.y+Math.max(0,oy)+j*half,f=fill(x,y,T);if(f>0.85){sel.push({x:Math.round(x),y:Math.round(y),w:Math.round(T)});fs+=f;}}
+      if(!sel.length)continue;
+      // part du bloc recouverte par les tuiles choisies
+      let cov=0,tot=0;const s=Math.max(1,b.w/40);
+      for(let y=b.y;y<b.y+b.h;y+=s)for(let x=b.x;x<b.x+b.w;x+=s){const xi=Math.round(x),yi=Math.round(y);if(!inBlob(xi,yi))continue;tot++;
+        if(sel.some(t=>xi>=t.x&&xi<t.x+t.w&&yi>=t.y&&yi<t.y+t.w))cov++;}
+      cands.push({score:(cov/tot)*(fs/sel.length),T,sel});
+    }}
+  // une pièce a 3 tuiles au plus ; parmi les découpages qui expliquent bien le bloc, on garde les plus grosses tuiles
+  // (sinon une colonne de 3 tuiles se découpe aussi en 10 petites tuiles qui la recouvrent tout aussi bien)
+  const okc=cands.filter(c=>c.sel.length<=3&&c.score>0.8);if(!okc.length)return [];
+  const good=okc.filter(c=>c.score>=0.85);
+  return (good.length?good.reduce((a,c)=>c.T>a.T?c:a):okc.reduce((a,c)=>c.score>a.score?c:a)).sel;
+}
+function dotScore(img,cx,cy,w){
+  // pixels blancs dans le coin haut-droit de la tuile (le point qui marque la tuile de fusion)
+  let n=0,k=0;const x0=Math.round(cx+w*0.2),x1=Math.round(cx+w*0.6),y0=Math.round(cy-w*0.6),y1=Math.round(cy-w*0.2);
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){if(x<0||y<0||x>=img.width||y>=img.height)continue;k++;const o=(y*img.width+x)*4;
+    if(img.data[o]>232&&img.data[o+1]>232&&img.data[o+2]>232)n++;}
+  return k?n/k:0;
+}
+function readPiece(img,rect,refs,minW,expT,mode){
+  const tiles=findTiles(img,rect,minW,expT,mode);if(!tiles.length)return {piece:[],unknown:[],tiles:[]};
+  if(tiles.length>3)return {piece:[],unknown:[],tiles:[],bad:true};   // une pièce a 3 tuiles au plus : lecture ratée
+  const ws=tiles.map(t=>t.w).sort((a,b)=>a-b),pitch=1.09*ws[ws.length>>1];
+  const cs=tiles.map(t=>[t.x+t.w/2,t.y+t.w/2,t.w]);const [bx,by]=cs[0];
+  const piece=[],unknown=[],info=[];
+  for(const [cx,cy,tw] of cs){
+    const dq=Math.round((cx-bx)/pitch),dr=Math.round((cy-by)/pitch-dq/2);
+    const c=classify(img,cx,cy,tw,refs);
+    const dot=dotScore(img,cx,cy,tw);
+    info.push({cx,cy,size:tw,l:c.l,d:c.d,sig:c.sig,dq,dr,dot});
+    if(c.l===null){unknown.push({cx,cy,size:tw});continue;}
+    if(c.l>0)piece.push({p:[dq,dr,c.l],dot});
+  }
+  piece.sort((a,b)=>a.p[0]-b.p[0]||a.p[1]-b.p[1]);
+  // tuile marquée : la plus « blanche » dans son coin, si le point est net (sinon : inconnue)
+  let anchor;const ds=piece.map(x=>x.dot),mx=Math.max(0,...ds);
+  if(piece.length>1&&mx>0.03&&ds.filter(d=>d>mx*0.5).length===1)anchor=ds.indexOf(mx);
+  info.forEach(t=>t.anchor=false);if(anchor!==undefined){const a=piece[anchor];const t=info.find(t=>t.dq===a.p[0]&&t.dr===a.p[1]);if(t)t.anchor=true;}
+  return {piece:piece.map(x=>x.p),anchor,unknown,tiles:info};
+}
+// le cadre de la pièce suivante est petit : on lit un peu au-delà pour ne pas couper une colonne de 3 tuiles
+const grow=(r,f)=>{const dx=(r[2]-r[0])*f,dy=(r[3]-r[1])*f;return [r[0]-dx,r[1]-dy,r[2]+dx,r[3]+dy];};
+function readAll(img,cfg,refs,smallRefs){
+  const g=boardGeom(cfg),board=[],unknown=[],cells=[];
+  g.centers.forEach(([cx,cy])=>{const c=classify(img,cx,cy,g.size,refs);
+    cells.push({cx,cy,size:g.size,l:c.l,d:c.d});
+    if(c.l===null){unknown.push({cx,cy,size:g.size});board.push(BLOCK);}else board.push(c.l);});
+  const minW=0.2*g.size;
+  const c=readPiece(img,cfg.cur,refs,minW,0.86*g.size),n=readPiece(img,grow(cfg.next,0.15),mergeRefs(refs,smallRefs),minW,0.38*g.size,'bright');
+  return {board,cur:c.piece,nxt:n.piece,curAnchor:c.anchor,nxtAnchor:n.anchor,unknown,curUnknown:c.unknown.length,nxtUnknown:n.unknown.length,curBad:!!c.bad,nxtBad:!!n.bad,
+          cells,curTiles:c.tiles,nxtTiles:n.tiles};
+}
+// petites tuiles de la pièce suivante : on ajoute les références apprises à cette taille
+function mergeRefs(a,b){if(!b)return a;const o={};for(const k in a)o[k]=a[k];for(const k in b)o[k]=(o[k]||[]).concat(b[k]);return o;}
+// tuile la plus probable dans une image collée (capture d'un objet)
+function tileFromImage(img){
+  const t=findTiles(img,[0,0,img.width,img.height],8,0);
+  if(t.length){const b=t.reduce((a,c)=>c.w>a.w?c:a);return {x:b.x,y:b.y,w:b.w};}
+  const s=Math.min(img.width,img.height);return {x:(img.width-s)/2,y:(img.height-s)/2,w:s};
+}
+</script>
+<script>
+/* ================= SOLVEUR ================= */
+const MAXL=10, BLOCK=99;           // BLOCK : case occupée par un objet non reconnu
+const CELLS=[],IDX={};const K=(q,r)=>q+','+r;
+for(let c=0;c<5;c++){const n=c%2?4:5;for(let row=0;row<n;row++){const q=c,r=row-((c-(c&1))>>1);IDX[K(q,r)]=CELLS.length;CELLS.push({c,row,q,r});}}
+const N=CELLS.length;
+const DIRS=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+const NB=CELLS.map(o=>DIRS.map(d=>IDX[K(o.q+d[0],o.r+d[1])]).filter(x=>x!==undefined));
+const rot1=p=>[-p[1],p[0]+p[1],p[2]];   // 60° horaire à l'écran
+function rotations(piece,anchor){
+  const out=[],seen=new Set();let s=piece;
+  for(let k=0;k<6;k++){if(k)s=s.map(rot1);
+    const mq=Math.min(...s.map(p=>p[0])),mr=Math.min(...s.map(p=>p[1]));
+    const sig=s.map((p,n)=>(p[0]-mq)+':'+(p[1]-mr)+':'+p[2]+(n===anchor?'*':'')).sort().join('|');
+    if(!seen.has(sig)){seen.add(sig);out.push({k,shape:s});}}
+  return out;
+}
+function placements(b,rots){
+  const out=[];
+  for(const R of rots){const s=R.shape,o=s[0];
+    for(let i=0;i<N;i++){const t=[];let ok=true;
+      for(const p of s){const j=IDX[K(CELLS[i].q+p[0]-o[0],CELLS[i].r+p[1]-o[1])];if(j===undefined||b[j]){ok=false;break;}t.push(j);}
+      if(ok)out.push({k:R.k,shape:s,idx:t});}}
+  return out;
+}
+// Où apparaît l'objet fusionné quand 2 ou 3 tuiles de la pièce posée sont dans le même groupe ?
+// Le jeu ne suit aucune règle simple repérée dans les parties enregistrées (la meilleure : 62 %).
+// On suppose donc le cas le moins favorable (la case qui enchaîne le moins de fusions) :
+// le solveur ne parie plus sur une cascade incertaine. Rejeu de 5 parties, case tirée au hasard :
+// 392 tours tenus en moyenne contre 379, et des résultats bien plus réguliers.
+function groupOf(b,a){const l=b[a],g=[a],s=new Set([a]);for(let h=0;h<g.length;h++)for(const n of NB[g[h]])if(!s.has(n)&&b[n]===l){s.add(n);g.push(n);}return g;}
+function cascadeFrom(b,g,dst,l){const nb=b.slice();g.forEach(x=>nb[x]=0);nb[dst]=Math.min(MAXL,l+(g.length>=5?2:1));let n=0;
+  while(nb[dst]<MAXL){const gg=groupOf(nb,dst);if(gg.length<3)break;const t=Math.min(MAXL,nb[dst]+(gg.length>=5?2:1));gg.forEach(x=>nb[x]=0);nb[dst]=t;n++;}return n;}
+// Mise à jour du jeu : un point blanc marque la tuile de la pièce où la fusion aura lieu (anchor = son indice).
+function resolve(b0,pl,anchor){
+  const b=b0.slice();pl.idx.forEach((j,n)=>b[j]=pl.shape[n][2]);
+  const merges=[],queue=pl.idx.slice();let created=-1;
+  while(queue.length){const a=queue.shift(),l=b[a];if(!l||l>=MAXL)continue;
+    const g=groupOf(b,a);
+    if(g.length>=3){let dst=a;
+      const A=anchor!==undefined?pl.idx[anchor]:undefined;
+      if(!g.includes(created)&&A!==undefined&&g.includes(A))dst=A;
+      else if(!g.includes(created)){const C=g.filter(x=>pl.idx.includes(x));if(C.length>1)dst=C.reduce((p,c)=>cascadeFrom(b,g,c,l)<cascadeFrom(b,g,p,l)?c:p);}
+      const to=Math.min(MAXL,l+(g.length>=5?2:1));g.forEach(x=>b[x]=0);b[dst]=to;created=dst;merges.push({l,to,size:g.length,at:dst});queue.unshift(dst);}}
+  return {b,merges};
+}
+// Toutes les issues possibles quand l'emplacement d'une fusion est incertain
+// (2 ou 3 tuiles de la pièce dans le même groupe : le jeu ne suit aucune règle simple repérée).
+function resolveAll(b0,pl,cap=6,anchor){
+  const A=anchor!==undefined?pl.idx[anchor]:undefined;
+  const out=[],seen=new Set();
+  const rec=(b,queue,created,merges)=>{
+    if(out.length>=cap)return;
+    while(queue.length){const a=queue[0],l=b[a];if(!l||l>=MAXL){queue=queue.slice(1);continue;}
+      const g=groupOf(b,a);if(g.length<3){queue=queue.slice(1);continue;}
+      const to=Math.min(MAXL,l+(g.length>=5?2:1));
+      const C=g.includes(created)?[created]:(A!==undefined&&g.includes(A))?[A]:g.filter(x=>pl.idx.includes(x));const D=C.length?C:[a];
+      for(const dst of D){const nb=b.slice();g.forEach(x=>nb[x]=0);nb[dst]=to;
+        rec(nb,[dst,...queue.slice(1).filter(x=>!g.includes(x))],dst,[...merges,{l,to,size:g.length,at:dst}]);}
+      return;}
+    const k=b.join(',');if(!seen.has(k)){seen.add(k);out.push({b,merges});}
+  };
+  const b=b0.slice();pl.idx.forEach((j,n)=>b[j]=pl.shape[n][2]);rec(b,pl.idx.slice(),-1,[]);
+  return out.length?out:[resolve(b0,pl,anchor)];
+}
+const mergePts=m=>m.reduce((s,x,j)=>s+15*Math.pow(2,x.to-2)*(1+0.3*j)-(x.size===4?4:0),0);
+function survival(b){
+  let pair=false;
+  for(let i=0;i<N;i++){if(b[i])continue;
+    for(const n of NB[i]){if(b[n])continue;pair=true;for(const m of NB[n])if(m!==i&&!b[m])return 0;}}
+  return pair?-150:-400;
+}
+// Règle du jeu : dès le premier N5, le N1 ne sort plus ; dès le premier N6, le N2 ; etc.
+// Les objets de ces niveaux ne fusionneront plus jamais (poubelle).
+const _dead={};
+// Observé sur une partie enregistrée : N1 s'arrête au 1er N5, N2 au 1er N6, N3 au 1er N7,
+// mais N4 sort encore après le 1er N8 (les pièces restent entre N4 et N6). D'où le plafond à 3.
+const DEAD_CAP=3;
+function deadFor(maxReached){if(_dead[maxReached])return _dead[maxReached];
+  const d=new Set();for(let l=1;l<=Math.min(maxReached-4,DEAD_CAP);l++)d.add(l);return _dead[maxReached]=d;}
+function evaluate(b,dead){
+  let s=survival(b);
+  for(let i=0;i<N;i++){
+    // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
+    // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
+    // Rejeu de 6 parties (6 tirages) : 515 tours tenus sur 550 en moyenne contre 472 sans ce terme.
+    if(!b[i]){s+=16;let e=0;for(const n of NB[i])if(!b[n])e++;if(e>=2)s+=1.5;s+=e*(e-1)/2;continue;}
+    if(b[i]>MAXL||dead.has(b[i]))continue;   // objet non reconnu ou poubelle : simple case perdue
+    let same=0,empty=0;for(const n of NB[i]){if(b[n]===b[i])same++;if(!b[n])empty++;}
+    // hauts niveaux (N6+) qui se touchent : bonus exponentiel, pour préparer les fusions vers N9/N10
+    // (HI_MULT = 2 : +2,5 % de tours tenus au rejeu de 14 parties ; 4 = mode « viser N10 » : 2x plus de N9 en simulation)
+    const H=b[i]>5?HI_MULT*Math.pow(2,b[i]-5):1;
+    if(same){s+=(2+b[i])*same/2*H;if(empty)s+=2;}else if(!empty)s-=3+b[i];
+  }
+  return s;
+}
+const topLevel=m=>m.reduce((x,y)=>Math.max(x,y.to),0);
+function bestReply(b,rots,max,w,anchor){
+  // meilleur placement d'une pièce connue : {v, merges, b, max} ou null si elle ne rentre pas
+  let best=null;
+  for(const q of placements(b,rots)){const c=resolve(b,q,anchor),m=Math.max(max,topLevel(c.merges));
+    const v=w*mergePts(c.merges)+evaluate(c.b,deadFor(m));
+    if(!best||v>best.v)best={v,merges:c.merges,b:c.b,max:m,mp:w*mergePts(c.merges)};}
+  return best;
+}
+// élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
+let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2;
+function solve(board,cur,nxt,maxReached,dist,anc){
+  anc=anc||{};
+  // maxReached : plus haut niveau déjà obtenu (décide des niveaux poubelle)
+  // dist : pièces probables au 3e tour [{rots, p}] (issues des parties enregistrées), facultatif
+  maxReached=Math.max(maxReached||0,...board.filter(l=>l<=MAXL));
+  if(!cur.length)return {err:'Pièce actuelle non détectée'};
+  const pls=placements(board,rotations(cur,anc.cur));
+  if(!pls.length)return {err:'Partie terminée : la pièce ne rentre plus',over:true};
+  const r2=nxt.length?rotations(nxt,anc.nxt):null;
+  const res=pls.map(pl=>{
+    const a=resolve(board,pl,anc.cur),max1=Math.max(maxReached,topLevel(a.merges));
+    const o={...pl,after:a.b,max1,merges:a.merges,nextMerges:[],dead:false,
+      newDead:[...deadFor(max1)].filter(l=>!deadFor(maxReached).has(l)),m1:mergePts(a.merges)};
+    // issues possibles du coup (une seule le plus souvent) ; le score est leur moyenne
+    o.outs=resolveAll(board,pl,6,anc.cur).map(x=>{const m=Math.max(maxReached,topLevel(x.merges));return {b:x.b,max1:m,m1:mergePts(x.merges),at:(x.merges.find(mm=>pl.idx.includes(mm.at))||{}).at};});
+    let sum=0,deadAll=true;
+    for(const x of o.outs){
+      if(r2){const br=bestReply(x.b,r2,x.max1,0.9,anc.nxt);
+        if(br){x.fut=br.v;if(x.b.join()===a.b.join())o.nextMerges=br.merges;deadAll=false;}else{x.fut=-2000+evaluate(x.b,deadFor(x.max1));o.dead=true;}}
+      else{x.fut=evaluate(x.b,deadFor(x.max1));deadAll=false;}
+      sum+=x.m1+x.fut;}
+    o.uncertain=o.outs.length>1;
+    o.score=sum/o.outs.length-0.01*pl.k;
+    return o;
+  });
+  res.sort((x,y)=>y.score-x.score);
+  let depth=r2?2:1,risk=null;
+  if(r2&&dist&&dist.length){
+    // 3e tour : pour les meilleurs coups, moyenne sur les pièces probables (meilleure réponse à chacune)
+    depth=3;
+    // poses de la pièce suivante classées sur 2 tours (THIRD_TOP permet d'élaguer si besoin)
+    const third=(after,max1)=>{let best=-Infinity,bestRisk=1,nm=[];
+      const cand=placements(after,r2).map(q=>{const c=resolve(after,q,anc.nxt),m2=Math.max(max1,topLevel(c.merges));
+        return {c,m2,v:0.9*mergePts(c.merges)+evaluate(c.b,deadFor(m2))};}).sort((x,y)=>y.v-x.v).slice(0,THIRD_TOP);
+      for(const {c,m2} of cand){
+        let ev=0,blocked=0;
+        // les pièces contenant un niveau devenu poubelle ne peuvent plus sortir : on les retire et on renormalise
+        const dz=deadFor(m2),dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((s,d)=>s+d.p,0)||1;
+        for(const d0 of dd){const d={rots:d0.rots,p:d0.p/mass};const br=bestReply(c.b,d.rots,m2,0.8);
+          if(br)ev+=d.p*br.v;else{ev+=d.p*(-2000+evaluate(c.b,deadFor(m2)));blocked+=d.p;}}
+        const v=0.9*mergePts(c.merges)+ev;
+        if(v>best){best=v;bestRisk=blocked;nm=c.merges;}
+      }
+      return {best,risk:bestRisk,nm};};
+    for(const o of res.slice(0,CAND_TOP)){
+      if(o.dead&&o.outs.every(x=>x.fut<-1000))continue;
+      let s3=0,rk=0;
+      for(const x of o.outs){const t=x.fut<-1000?{best:x.fut,risk:1,nm:[]}:third(x.b,x.max1);x.v3=t.best;
+        s3+=x.m1+t.best;rk+=t.risk;if(x.b.join()===o.after.join()&&t.nm.length)o.nextMerges=t.nm;}
+      o.score3=s3/o.outs.length-0.01*o.k;o.risk=rk/o.outs.length;
+    }
+    const top=res.slice(0,CAND_TOP).filter(o=>o.score3!==undefined).sort((x,y)=>y.score3-x.score3);
+    res.splice(0,CAND_TOP,...top,...res.slice(0,CAND_TOP).filter(o=>o.score3===undefined));
+    risk=res[0].risk??null;
+  }
+  for(const o of res.slice(0,3))if(o.uncertain){
+    const v=x=>x.m1+(x.v3!==undefined?x.v3:x.fut);const bo=o.outs.reduce((a,x)=>v(x)>v(a)?x:a);const wo=o.outs.reduce((a,x)=>v(x)<v(a)?x:a);
+    o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
+  return {list:res.slice(0,3),depth,risk};
+}
+// Marteau (une fois par partie) : quelle relique détruire ? On teste chaque relique puis le meilleur coup qui suit.
+function solveHammer(board,cur,nxt,maxReached,dist,anc){
+  let best=null;
+  for(let i=0;i<N;i++){if(!board[i]||board[i]>MAXL)continue;
+    const b=board.slice();b[i]=0;const o=solve(b,cur,nxt,maxReached,null,anc);const x=o.list&&o.list[0];if(!x)continue;
+    const v=x.dead?-1e6+x.score:x.score;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
+  return best;
+}
+// clé d'une pièce indépendante de sa rotation et de sa position
+function pieceKey(piece){
+  let best=null;
+  let s=piece;for(let k=0;k<6;k++){if(k)s=s.map(rot1);const mq=Math.min(...s.map(p=>p[0])),mr=Math.min(...s.map(p=>p[1]));
+    const key=s.map(p=>[p[0]-mq,p[1]-mr,p[2]]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]).map(p=>p.join(',')).join(';');if(best===null||key<best)best=key;}
+  return best;
+}
+const keyToPiece=k=>k.split(';').map(t=>t.split(',').map(Number));
+const mtxt=m=>m.map(x=>`${x.size}×N${x.l} → N${x.to}`).join(', ');
+
+/* ================= VISION ================= */
+// img = {data (RGBA), width, height}
+const EMPTY_MAX=45;   // contour d'une case vide : très sombre
+let MATCH_MAX=1.15;   // écart max (0 à 2) entre histogrammes pour reconnaître une tuile
+function median(a){a.sort((x,y)=>x-y);return a[a.length>>1];}
+function borderBright(img,cx,cy,size){
+  // luminosité du contour de la tuile (pixels les plus clairs de la bande extérieure) : sombre = case vide
+  const h=size/2,x0=Math.round(cx-h),y0=Math.round(cy-h),x1=x0+Math.floor(size),y1=y0+Math.floor(size);
+  if(x0<0||y0<0||x1>img.width||y1>img.height)return 0;
+  const v=[];const step=size>80?2:1;
+  for(let y=y0;y<y1;y+=step)for(let x=x0;x<x1;x+=step){
+    const d=Math.max(Math.abs(x-cx),Math.abs(y-cy))/h;
+    if(d>0.7&&d<=1.0){const o=(y*img.width+x)*4;v.push(Math.max(img.data[o],img.data[o+1],img.data[o+2]));}}
+  if(!v.length)return 0;
+  v.sort((a,b)=>b-a);return v[Math.floor(v.length*0.12)];
+}
+function colorHist(img,x0,y0,w,h){
+  // empreinte d'une tuile : répartition des couleurs vives (64 cases), indépendante de la taille
+  const out=new Array(64).fill(0);let n=0;const step=Math.max(1,Math.min(w,h)/40);
+  for(let y=y0;y<y0+h;y+=step)for(let x=x0;x<x0+w;x+=step){
+    const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=img.width||yi>=img.height)continue;
+    const o=(yi*img.width+xi)*4,r=img.data[o],g=img.data[o+1],b=img.data[o+2];
+    if(Math.max(r,g,b)<60)continue;out[(r>>6)*16+(g>>6)*4+(b>>6)]++;n++;}
+  return out.map(v=>Math.round(1000*v/(n||1)));
+}
+const tileSig=(img,cx,cy,size)=>colorHist(img,cx-size/2,cy-size/2,size,size);
+function sigDist(a,b){let s=0;for(let i=0;i<64;i++)s+=Math.abs(a[i]-b[i]);return s/1000;}
+function classify(img,cx,cy,size,refs){
+  // -> {l: niveau (0 vide, null inconnu), d: écart}
+  if(borderBright(img,cx,cy,size)<EMPTY_MAX)return {l:0};
+  const sg=tileSig(img,cx,cy,size);let best=1e9,bl=null;
+  for(const lvl in refs)for(const r of refs[lvl]){const d=sigDist(sg,r.h);if(d<best){best=d;bl=+lvl;}}
+  return {l:best<=MATCH_MAX?bl:null,d:best,sig:sg};
+}
+function boardGeom(cfg){
+  const [x1,y1]=cfg.tl,[x2,y2]=cfg.br,dx=(x2-x1)/4,dy=(y2-y1)/4;
+  return {centers:CELLS.map(o=>[x1+o.c*dx,y1+(o.row+(o.c%2)*.5)*dy]),size:0.89*Math.min(dx,dy)};
+}
+const BRIGHT=100;
+function findTiles(img,rect,minW,expT,mode){
+  // mode 'bright' (pièce suivante) : tuiles repérées par leurs contours vifs, quel que soit le fond
+  // sinon (pièce actuelle, captures) : tout ce qui se détache de la couleur dominante de la zone
+  const x0=Math.max(0,Math.floor(rect[0])),y0=Math.max(0,Math.floor(rect[1]));
+  const x1=Math.min(img.width,Math.floor(rect[2])),y1=Math.min(img.height,Math.floor(rect[3]));
+  const W=x1-x0,H=y1-y0;if(W<4||H<4)return [];
+  const D=img.data,at=(x,y)=>((y0+y)*img.width+x0+x)*4;
+  const m=new Uint8Array(W*H);
+  if(mode==='bright'){
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const o=at(x,y);if(Math.max(D[o],D[o+1],D[o+2])>BRIGHT)m[y*W+x]=1;}
+  }else{
+    const hist=new Map();
+    for(let y=0;y<H;y+=2)for(let x=0;x<W;x+=2){const o=at(x,y);const k=(D[o]>>4)*256+(D[o+1]>>4)*16+(D[o+2]>>4);hist.set(k,(hist.get(k)||0)+1);}
+    let mk=0,mc=-1;for(const [k,c] of hist)if(c>mc){mc=c;mk=k;}
+    const R=[],G=[],B=[];
+    for(let y=0;y<H;y+=2)for(let x=0;x<W;x+=2){const o=at(x,y);if((D[o]>>4)*256+(D[o+1]>>4)*16+(D[o+2]>>4)===mk){R.push(D[o]);G.push(D[o+1]);B.push(D[o+2]);}}
+    const bg=[median(R),median(G),median(B)];
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const o=at(x,y),r=D[o],g=D[o+1],b=D[o+2];
+      const star=r>170&&g>100&&b<110&&r-b>100;   // étoiles jaunes sous les tuiles
+      if(!star&&Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2])>60)m[y*W+x]=1;}
+  }
+  const md=new Uint8Array(W*H),R=mode==='bright'?2:1;   // petites tuiles : on referme davantage les contours
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(!m[y*W+x])continue;
+    for(let yy=Math.max(0,y-R);yy<=Math.min(H-1,y+R);yy++)for(let xx=Math.max(0,x-R);xx<=Math.min(W-1,x+R);xx++)md[yy*W+xx]=1;}
+  // bouche les trous (intérieur sombre des tuiles) : tout ce qui n'est pas relié au bord de la zone
+  const outside=new Uint8Array(W*H),st=[];
+  for(let x=0;x<W;x++){st.push(x,(H-1)*W+x);}for(let y=0;y<H;y++){st.push(y*W,y*W+W-1);}
+  while(st.length){const q=st.pop();if(outside[q]||md[q])continue;outside[q]=1;const x=q%W,y=(q/W)|0;
+    if(x>0)st.push(q-1);if(x<W-1)st.push(q+1);if(y>0)st.push(q-W);if(y<H-1)st.push(q+W);}
+  const fm=new Uint8Array(W*H);for(let p=0;p<W*H;p++)fm[p]=outside[p]?0:1;
+  const lab=new Int32Array(W*H),boxes=[];let id=0;
+  for(let p=0;p<W*H;p++){if(!fm[p]||lab[p])continue;id++;
+    let bx0=W,by0=H,bx1=0,by1=0,n=0;st.push(p);lab[p]=id;
+    while(st.length){const q=st.pop(),x=q%W,y=(q/W)|0;n++;
+      if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y;
+      if(x>0&&fm[q-1]&&!lab[q-1]){lab[q-1]=id;st.push(q-1);}
+      if(x<W-1&&fm[q+1]&&!lab[q+1]){lab[q+1]=id;st.push(q+1);}
+      if(y>0&&fm[q-W]&&!lab[q-W]){lab[q-W]=id;st.push(q-W);}
+      if(y<H-1&&fm[q+W]&&!lab[q+W]){lab[q+W]=id;st.push(q+W);}}
+    boxes.push({id,x:bx0,y:by0,w:bx1-bx0+1,h:by1-by0+1,n});}
+  // une tuile seule est un carré plein ; sinon c'est un groupe de tuiles collées à redécouper
+  const single=b=>b.w>Math.max(12,minW)&&b.h/b.w>0.85&&b.h/b.w<1.25&&b.n>0.8*b.w*b.h&&b.w<0.95*W;
+  let out=[];
+  for(const b of boxes){
+    // la zone contient le cadre sombre lui-même : on cherche les tuiles à l'intérieur du cadre
+    if(single(b))out.push(b);
+    else if(b.w>Math.max(12,minW)&&b.n>0.3*b.w*b.h&&b.w<0.98*W)out.push(...splitBlob(lab,W,b));
+  }
+  if(out.length){const wm=Math.max(...out.map(b=>b.w));out=out.filter(b=>b.w>0.7*wm);}
+  return out.map(b=>({x:x0+b.x,y:y0+b.y,w:b.w}));
+}
+function splitBlob(lab,W,b){
+  // essaie plusieurs tailles de tuile ; garde le découpage qui recouvre le mieux le bloc
+  const inBlob=(x,y)=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h&&lab[y*W+x]===b.id;
+  const fill=(x0,y0,T)=>{let n=0,k=0;const s=Math.max(1,T/12);
+    for(let y=y0+T*.1;y<y0+T*.9;y+=s)for(let x=x0+T*.1;x<x0+T*.9;x+=s){k++;if(inBlob(Math.round(x),Math.round(y)))n++;}return k?n/k:0;};
+  const cands=[];
+  // taille de tuile inconnue : on essaie une plage de tailles autour de celle suggérée par la largeur du bloc
+  for(let c=1;c<=3;c++)for(const ratio of [1.0,1.035,1.07])for(const sc of [0.8,0.85,0.9,0.95,1]){
+    const T=sc*b.w/(1+(c-1)*ratio);if(T<8)continue;
+    const span=T*(1+(c-1)*ratio),ox=(b.w-span)/2;
+    const half=ratio*T/2,h=Math.round((b.h-T)/half);if(h<0||h>4)continue;
+    const oy=(b.h-(T+h*half))/2;if(Math.abs(oy)*2/T>0.3)continue;
+    for(const base of [0,1]){
+      const sel=[];let fs=0;
+      for(let i=0;i<c;i++)for(let j=0;j<=h;j++){if((i+j+base)%2)continue;
+        const x=b.x+ox+i*ratio*T,y=b.y+Math.max(0,oy)+j*half,f=fill(x,y,T);if(f>0.85){sel.push({x:Math.round(x),y:Math.round(y),w:Math.round(T)});fs+=f;}}
+      if(!sel.length)continue;
+      // part du bloc recouverte par les tuiles choisies
+      let cov=0,tot=0;const s=Math.max(1,b.w/40);
+      for(let y=b.y;y<b.y+b.h;y+=s)for(let x=b.x;x<b.x+b.w;x+=s){const xi=Math.round(x),yi=Math.round(y);if(!inBlob(xi,yi))continue;tot++;
+        if(sel.some(t=>xi>=t.x&&xi<t.x+t.w&&yi>=t.y&&yi<t.y+t.w))cov++;}
+      cands.push({score:(cov/tot)*(fs/sel.length),T,sel});
+    }}
+  // une pièce a 3 tuiles au plus ; parmi les découpages qui expliquent bien le bloc, on garde les plus grosses tuiles
+  // (sinon une colonne de 3 tuiles se découpe aussi en 10 petites tuiles qui la recouvrent tout aussi bien)
+  const okc=cands.filter(c=>c.sel.length<=3&&c.score>0.8);if(!okc.length)return [];
+  const good=okc.filter(c=>c.score>=0.85);
+  return (good.length?good.reduce((a,c)=>c.T>a.T?c:a):okc.reduce((a,c)=>c.score>a.score?c:a)).sel;
+}
+function dotScore(img,cx,cy,w){
+  // pixels blancs dans le coin haut-droit de la tuile (le point qui marque la tuile de fusion)
+  let n=0,k=0;const x0=Math.round(cx+w*0.2),x1=Math.round(cx+w*0.6),y0=Math.round(cy-w*0.6),y1=Math.round(cy-w*0.2);
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){if(x<0||y<0||x>=img.width||y>=img.height)continue;k++;const o=(y*img.width+x)*4;
+    if(img.data[o]>232&&img.data[o+1]>232&&img.data[o+2]>232)n++;}
+  return k?n/k:0;
+}
+function readPiece(img,rect,refs,minW,expT,mode){
+  const tiles=findTiles(img,rect,minW,expT,mode);if(!tiles.length)return {piece:[],unknown:[],tiles:[]};
+  if(tiles.length>3)return {piece:[],unknown:[],tiles:[],bad:true};   // une pièce a 3 tuiles au plus : lecture ratée
+  const ws=tiles.map(t=>t.w).sort((a,b)=>a-b),pitch=1.09*ws[ws.length>>1];
+  const cs=tiles.map(t=>[t.x+t.w/2,t.y+t.w/2,t.w]);const [bx,by]=cs[0];
+  const piece=[],unknown=[],info=[];
+  for(const [cx,cy,tw] of cs){
+    const dq=Math.round((cx-bx)/pitch),dr=Math.round((cy-by)/pitch-dq/2);
+    const c=classify(img,cx,cy,tw,refs);
+    const dot=dotScore(img,cx,cy,tw);
+    info.push({cx,cy,size:tw,l:c.l,d:c.d,sig:c.sig,dq,dr,dot});
+    if(c.l===null){unknown.push({cx,cy,size:tw});continue;}
+    if(c.l>0)piece.push({p:[dq,dr,c.l],dot});
+  }
+  piece.sort((a,b)=>a.p[0]-b.p[0]||a.p[1]-b.p[1]);
+  // tuile marquée : la plus « blanche » dans son coin, si le point est net (sinon : inconnue)
+  let anchor;const ds=piece.map(x=>x.dot),mx=Math.max(0,...ds);
+  if(piece.length>1&&mx>0.03&&ds.filter(d=>d>mx*0.5).length===1)anchor=ds.indexOf(mx);
+  info.forEach(t=>t.anchor=false);if(anchor!==undefined){const a=piece[anchor];const t=info.find(t=>t.dq===a.p[0]&&t.dr===a.p[1]);if(t)t.anchor=true;}
+  return {piece:piece.map(x=>x.p),anchor,unknown,tiles:info};
+}
+// le cadre de la pièce suivante est petit : on lit un peu au-delà pour ne pas couper une colonne de 3 tuiles
+const grow=(r,f)=>{const dx=(r[2]-r[0])*f,dy=(r[3]-r[1])*f;return [r[0]-dx,r[1]-dy,r[2]+dx,r[3]+dy];};
+function readAll(img,cfg,refs,smallRefs){
+  const g=boardGeom(cfg),board=[],unknown=[],cells=[];
+  g.centers.forEach(([cx,cy])=>{const c=classify(img,cx,cy,g.size,refs);
+    cells.push({cx,cy,size:g.size,l:c.l,d:c.d});
+    if(c.l===null){unknown.push({cx,cy,size:g.size});board.push(BLOCK);}else board.push(c.l);});
+  const minW=0.2*g.size;
+  const c=readPiece(img,cfg.cur,refs,minW,0.86*g.size),n=readPiece(img,grow(cfg.next,0.15),mergeRefs(refs,smallRefs),minW,0.38*g.size,'bright');
+  return {board,cur:c.piece,nxt:n.piece,curAnchor:c.anchor,nxtAnchor:n.anchor,unknown,curUnknown:c.unknown.length,nxtUnknown:n.unknown.length,curBad:!!c.bad,nxtBad:!!n.bad,
+          cells,curTiles:c.tiles,nxtTiles:n.tiles};
+}
+// petites tuiles de la pièce suivante : on ajoute les références apprises à cette taille
+function mergeRefs(a,b){if(!b)return a;const o={};for(const k in a)o[k]=a[k];for(const k in b)o[k]=(o[k]||[]).concat(b[k]);return o;}
+// tuile la plus probable dans une image collée (capture d'un objet)
+function tileFromImage(img){
+  const t=findTiles(img,[0,0,img.width,img.height],8,0);
+  if(t.length){const b=t.reduce((a,c)=>c.w>a.w?c:a);return {x:b.x,y:b.y,w:b.w};}
+  const s=Math.min(img.width,img.height);return {x:(img.width-s)/2,y:(img.height-s)/2,w:s};
+}
+
+
+/* ================= INTERFACE ================= */
+const DEFAULT_LEVELS={"1":[{"h":[49,0,7,0,0,2,2,3,0,0,0,0,0,0,0,0,171,0,0,0,20,102,44,2,0,2,5,0,0,0,0,0,0,0,0,0,10,2,0,0,5,0,428,46,0,0,0,31,0,0,0,0,0,0,0,0,7,0,0,0,5,20,0,37],"img":"data:image/png;base64,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"},{"h":[47,38,0,0,0,13,4,4,0,0,0,0,0,0,0,0,8,0,0,0,21,386,8,0,0,4,13,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,292,8,0,0,0,59,0,0,0,0,0,0,0,0,8,0,0,0,4,4,0,72],"img":"data:image/png;base64,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"},{"h":[25,19,0,0,0,0,0,0,0,0,0,6,0,0,0,0,12,0,0,0,62,68,0,0,0,0,112,0,0,0,0,0,0,0,0,0,12,0,0,0,6,0,466,6,0,0,0,81,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,118],"img":"data:image/png;base64,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"}],"2":[{"h":[10,0,0,0,34,3,0,0,0,0,0,0,0,0,0,0,194,0,0,0,56,55,0,0,18,229,0,0,15,95,0,0,0,0,0,0,9,0,0,0,19,3,0,0,83,1,0,0,0,0,0,0,0,0,0,0,13,0,0,0,86,40,25,13],"img":"data:image/png;base64,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"},{"h":[11,0,0,0,113,3,0,0,2,0,0,0,0,0,0,0,15,0,0,0,63,8,0,0,12,252,0,0,17,147,0,0,0,0,0,0,9,0,0,0,22,3,8,0,103,3,0,0,0,0,0,0,0,0,0,0,15,0,0,0,103,52,29,9],"img":"data:image/png;base64,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"},{"h":[11,0,0,0,125,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,96,18,4,0,26,243,0,0,7,154,51,0,0,0,0,0,18,4,4,0,26,18,0,0,74,4,0,0,0,0,0,0,0,0,0,0,15,0,0,0,63,7,22,0],"img":"data:image/png;base64,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"}],"3":[{"h":[6,40,5,0,0,74,116,22,0,0,0,49,0,0,0,0,12,0,0,0,39,31,3,3,2,0,2,306,0,0,0,2,0,0,0,0,37,0,0,0,39,12,23,0,0,0,0,0,0,0,0,0,0,0,0,0,34,0,9,0,40,32,20,43],"img":"data:image/png;base64,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"}]};
+// couleurs des contours des objets du jeu (mesurées sur tes captures) ; N10 inconnu pour l'instant
+const COLORS=[null,'#949fa1','#5cb15e','#417cbd','#8c65bd','#b04a4b','#d0a042','#45c8d6','#cd95b7','#6a78c8','#8e1f3a'];
+// texte sombre sur les couleurs claires, blanc sur les foncées
+const ink=c=>{if(!c)return '#fff';const n=parseInt(c.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;return (0.299*r+0.587*g+0.114*b)>150?'#1a1310':'#fff';};
+const _el={};const $=id=>_el[id]||(_el[id]=document.getElementById(id)); // références gardées : le panneau peut changer de fenêtre
+const store={get(k,d){try{const v=localStorage.getItem('fusionConseil.'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem('fusionConseil.'+k,JSON.stringify(v));return true;}catch(e){return false;}}};
+let levels=store.get('levels',null)||JSON.parse(JSON.stringify(DEFAULT_LEVELS));
+let cfg=store.get('cfg',null);
+let maxReached=store.get('maxReached',0);  // plus haut niveau obtenu dans la partie en cours
+const STABLE_MS=450;let sigSince=0;
+let prevBoard=null,pendingMax=0,prevNext=null,overBoard=null;
+let smallRefs=store.get('smallRefs2',{});   // petites tuiles de la pièce suivante, apprises automatiquement
+// la pièce suivante devient la pièce actuelle : sa lecture (fiable, en grand) donne le niveau de chaque petite tuile
+function learnSmall(r){
+  if(!prevNext||prevNext.length!==r.cur.length)return;
+  const norm=a=>{const mq=Math.min(...a.map(p=>p[0])),mr=Math.min(...a.map(p=>p[1]));return a.map(p=>[p[0]-mq,p[1]-mr,p[2]]);};
+  const cur=norm(r.cur.map(p=>[p[0],p[1],p[2]])),key=a=>a.map(p=>p[0]+','+p[1]).sort().join(';');
+  // toutes les orientations qui superposent les deux formes ; on n'apprend que si elles donnent les mêmes niveaux
+  let sh=prevNext.map((t,i)=>[t.dq,t.dr,i]);const assigns=new Set();let assign=null;
+  for(let k=0;k<6;k++){if(k)sh=sh.map(rot1);const n=norm(sh);
+    if(key(n)!==key(cur))continue;
+    const a=n.map(p=>[p[2],cur.find(q=>q[0]===p[0]&&q[1]===p[1])[2]]).sort((x,y)=>x[0]-y[0]);
+    assigns.add(JSON.stringify(a));assign=a;}
+  if(assigns.size===1){
+    for(const [i,l] of assign){const t=prevNext[i];
+      if(!t.sig||(t.l===l&&t.d<0.25))continue;            // déjà bien reconnue : rien à apprendre
+      (smallRefs[l]=smallRefs[l]||[]).push({h:t.sig});if(smallRefs[l].length>12)smallRefs[l].shift();}
+    store.set('smallRefs2',smallRefs);
+  }
+  prevNext=null;
+}
+let games=store.get('games',[]);          // parties terminées
+let curGame=store.get('curGame',null);    // partie en cours
+let lastAdvice=null;
+const bstr=b=>b.map(l=>l>MAXL?'x':l.toString(36)).join('');
+function saveGames(){
+  if(store.set('games',games)&&store.set('curGame',curGame))return;
+  // stockage plein : on allège les plus anciennes parties (on garde leur résumé)
+  for(const g of games){if(g.turns){delete g.turns;if(store.set('games',games)&&store.set('curGame',curGame))return;}}
+  setStatus("Stockage du navigateur plein : exporte tes parties puis efface-les.",true);
+}
+function endGame(reason){
+  try{setHammer(true);}catch(e){}
+  if(!curGame||!curGame.turns.length){curGame=null;saveGames();return;}
+  const t=curGame.turns,f=t.filter(x=>x.f!==undefined);
+  curGame.end=Date.now();curGame.reason=reason;curGame.max=Math.max(curGame.max||0,maxReached);
+  curGame.n=t.length;curGame.follow=f.length?f.filter(x=>x.f).length/f.length:null;
+  games.push(curGame);curGame=null;saveGames();renderGames();
+}
+function recordTurn(r){
+  if(!curGame)curGame={id:Date.now().toString(36),start:Date.now(),turns:[],max:0};
+  const prev=curGame.turns[curGame.turns.length-1];
+  // le conseil a-t-il été suivi ? (si la fusion était incertaine, toute issue possible compte, et on note laquelle est arrivée :
+  // c'est ce qui permettra de découvrir la règle du jeu)
+  if(prev&&prev.adv){const nb=bstr(r.board),alts=prev.adv.alts||[];
+    prev.f=nb===prev.adv.after||alts.includes(nb)?1:0;if(alts.length&&alts.includes(nb))prev.land=alts.indexOf(nb);}
+  curGame.turns.push({b:bstr(r.board),c:pieceKey(r.cur),r:r.cur.map(p=>p.join(',')).join(';'),a:r.curAnchor,na:r.nxtAnchor,n:r.nxt.length&&!r.nxtUnknown?pieceKey(r.nxt):null,m:maxReached});
+  curGame.max=Math.max(curGame.max,maxReached);
+  saveGames();renderGames();
+}
+// pièces probables pour le 3e tour, d'après les tours enregistrés
+const stageOf=m=>Math.max(1,Math.min(m-3,DEAD_CAP+1));   // plus petit niveau qui sort encore
+function allTurns(){const t=[];for(const g of games)if(g.turns)t.push(...g.turns);if(curGame)t.push(...curGame.turns);return t;}
+function pieceDist(m){
+  const st=stageOf(m),turns=allTurns(),cnt=new Map();let tot=0;
+  const add=(k,w)=>{cnt.set(k,(cnt.get(k)||0)+w);tot+=w;};
+  for(const t of turns)if(stageOf(t.m)===st&&keyToPiece(t.c).length<=3)add(t.c,1);
+  if(tot<15){cnt.clear();tot=0;          // pas assez de données à ce stade : on décale les niveaux des autres stades
+    for(const t of turns){const d=st-stageOf(t.m),p=keyToPiece(t.c).map(x=>[x[0],x[1],x[2]+d]);
+      if(p.every(x=>x[2]>=1&&x[2]<=MAXL))add(pieceKey(p),1);}}
+  if(tot<15)return {list:[],total:tot};
+  // les 3 pièces les plus fréquentes de chaque taille (1, 2 et 3 tuiles), pondérées par la part de chaque taille :
+  // garder seulement les 6 plus fréquentes oubliait les pièces à 3 tuiles (chacune rare, mais 1 pièce sur 3 au total)
+  // et a coûté une partie (tour 68 : coup conseillé sans place pour une pièce à 3 tuiles)
+  const list=[];
+  for(const n of [1,2,3]){const e=[...cnt.entries()].filter(([k])=>keyToPiece(k).length===n),sz=e.reduce((s,x)=>s+x[1],0);if(!sz)continue;
+    const top=e.sort((a,b)=>b[1]-a[1]).slice(0,3),mass=top.reduce((s,x)=>s+x[1],0);
+    for(const [k,c] of top)list.push({key:k,rots:rotations(keyToPiece(k)),p:(sz/tot)*(c/mass),share:c/tot});}
+  list.sort((a,b)=>b.share-a.share);
+  return {list,total:tot};
+}
+const keyDesc=k=>keyToPiece(k).map(p=>'N'+p[2]).join('-');
+function renderGames(){
+  const done=games.filter(g=>g.n),best=Math.max(0,...games.map(g=>g.max||0));
+  const avg=done.length?Math.round(done.reduce((s,g)=>s+g.n,0)/done.length):0;
+  const fol=games.filter(g=>g.follow!=null);const fr=fol.length?Math.round(100*fol.reduce((s,g)=>s+g.follow,0)/fol.length):null;
+  const d=pieceDist(maxReached);
+  $('games').innerHTML=`<div class="stats">
+    <div class="stat"><b>${games.length}</b><span>parties terminées</span></div>
+    <div class="stat"><b>${curGame?curGame.turns.length:0}</b><span>tours (partie en cours)</span></div>
+    <div class="stat"><b>${best?'N'+best:'—'}</b><span>meilleur niveau</span></div>
+    <div class="stat"><b>${avg||'—'}</b><span>tours en moyenne</span></div>
+    <div class="stat"><b>${fr===null?'—':fr+' %'}</b><span>conseils suivis</span></div></div>
+    <p class="pieces">${d.list.length?`Pièces les plus fréquentes à ce stade (${d.total} pièces vues) : `+d.list.map(x=>`${keyDesc(x.key)} <b>${Math.round(100*x.share)} %</b>`).join(' · ')+'. Utilisées pour anticiper un 3ᵉ tour.'
+      :`Pièces vues : ${d.total}/15. Au-delà, l'outil anticipe un 3ᵉ tour d'après les pièces les plus fréquentes.`}</p>`;
+}
+$('gNew').onclick=()=>{endGame('manuel');setStatus('Partie terminée et enregistrée.');};
+$('gExport').onclick=()=>{
+  const data=JSON.stringify({version:1,exported:new Date().toISOString(),games,curGame});
+  if(window.Android){try{Android.saveExport('fusion_parties_'+new Date().toISOString().slice(0,10)+'.json',data);setStatus('Export enregistré dans Téléchargements.');}catch(e){setStatus("L'export a échoué : "+e.message,true);}return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  a.download='fusion_parties_'+new Date().toISOString().slice(0,10)+'.json';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+$('gImport').onclick=()=>{$('gFile').value='';$('gFile').click();};
+$('gFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  try{const d=JSON.parse(await f.text());const ids=new Set(games.map(g=>g.id));let n=0;
+    for(const g of d.games||[])if(!ids.has(g.id)){games.push(g);n++;}
+    games.sort((a,b)=>a.start-b.start);saveGames();renderGames();setStatus(`${n} partie(s) importée(s).`);}
+  catch(err){setStatus("Ce fichier n'est pas un export de Fusion Conseil.",true);}};
+let clearArmed=false;
+$('gClear').onclick=()=>{
+  if(!clearArmed){clearArmed=true;$('gClear').textContent='Confirmer : tout effacer';setTimeout(()=>{clearArmed=false;$('gClear').textContent='Tout effacer';},4000);return;}
+  games=[];curGame=null;saveGames();renderGames();clearArmed=false;$('gClear').textContent='Tout effacer';setStatus('Parties effacées.');};
+
+let DEAD=deadFor(maxReached);
+function setMax(v){maxReached=Math.max(0,Math.min(MAXL,v));store.set('maxReached',maxReached);DEAD=deadFor(maxReached);solvedSig=null;renderLevels();}
+let stream=null,paused=false,lastImg=null,lastSig=null,stable=0,solvedSig=null,pipWin=null,busy=false;
+const grabCv=document.createElement('canvas'),grabCtx=grabCv.getContext('2d',{willReadFrequently:true});
+
+function setStatus(t,err){$('status').textContent=t;$('status').className='status'+(err?' err':'');}
+
+/* --- capture des images du jeu --- */
+function toImageData(src,w,h){
+  if(grabCv.width!==w||grabCv.height!==h){grabCv.width=w;grabCv.height=h;}
+  grabCtx.drawImage(src,0,0,w,h);return grabCtx.getImageData(0,0,w,h);
+}
+let lastProc=0;
+function onFrame(img){const first=!lastImg;lastImg=img;if(first)renderLevels();const now=performance.now();if(now-lastProc<140||busy)return;lastProc=now;busy=true;try{process(img);}finally{busy=false;}}
+async function frameLoop(track){
+  // lecture directe des images : continue même quand cette page est cachée derrière le jeu
+  const reader=new MediaStreamTrackProcessor({track}).readable.getReader();
+  while(true){
+    const {value:frame,done}=await reader.read();if(done)break;
+    try{if(performance.now()-lastProc>=140&&!busy)onFrame(toImageData(frame,frame.displayWidth,frame.displayHeight));}
+    finally{frame.close();}
+  }
+}
+function videoLoop(){
+  const v=$('video');v.srcObject=stream;v.play().catch(()=>{});
+  setInterval(()=>{if(v.videoWidth)onFrame(toImageData(v,v.videoWidth,v.videoHeight));},150);
+}
+$('bShare').onclick=async()=>{
+  try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:6},audio:false});}
+  catch(e){setStatus("Capture refusée ou impossible. Ouvre ce fichier dans Chrome ou Edge et choisis la fenêtre du jeu.",true);return;}
+  const track=stream.getVideoTracks()[0];
+  track.addEventListener('ended',()=>{setStatus("Capture arrêtée. Choisis à nouveau la fenêtre du jeu.",true);});
+  if('MediaStreamTrackProcessor' in window)frameLoop(track);else videoLoop();
+  ['bCalib','bPause'].forEach(b=>$(b).disabled=false);$('bPip').disabled=!('documentPictureInPicture' in window);
+  renderLevels();
+  setStatus(cfg?"Capture en cours. Si la taille de la fenêtre du jeu a changé, recalibre.":"Capture en cours. Clique maintenant sur « Calibrer ».");
+};
+$('bPause').onclick=()=>{paused=!paused;$('bPause').textContent=paused?'Reprendre':'Pause';$('advStatus').textContent=paused?'En pause':'';};
+
+/* --- lecture + conseil --- */
+function process(img){
+  if(paused||!cfg||!$('ov').hidden)return;
+  if(img.width!==cfg.w||img.height!==cfg.h){$('rot').textContent='—';$('info').textContent='La taille de la fenêtre du jeu a changé : recalibre.';$('info').className='err';return;}
+  const t0=performance.now();
+  const r=readAll(img,cfg,levels,smallRefs);
+  const sig=JSON.stringify([r.board,r.cur,r.nxt,r.curUnknown,r.nxtUnknown,r.curAnchor,r.nxtAnchor]);
+  // fin d'animation : la même lecture doit durer au moins STABLE_MS (et pas seulement 2 images d'affilée :
+  // à 7 lectures par seconde, la pièce suivante était parfois lue pendant qu'elle glissait dans son cadre)
+  const now=performance.now();if(sig!==lastSig){lastSig=sig;sigSince=now;return;}
+  if(now-sigSince<STABLE_MS)return;
+  if(sig===solvedSig)return;solvedSig=sig;
+  trackPieces(r);
+  show(r,performance.now()-t0);
+}
+function trackPieces(r){
+  const empty=r.board.every(l=>l===0);
+  if(empty&&prevBoard&&prevBoard.some(l=>l>0)){endGame('plateau vidé');setMax(0);}   // nouvelle partie
+  const lastT=curGame&&curGame.turns[curGame.turns.length-1];
+  const fresh=!lastT||lastT.b!==bstr(r.board);     // un tour = un nouveau plateau (évite les doublons)
+  if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
+  else if(!fresh&&lastT&&r.cur.length&&!r.curUnknown){
+    // même plateau mais pièces relues différemment (fin d'animation) : on corrige le tour enregistré
+    const c=pieceKey(r.cur),n=r.nxt.length&&!r.nxtUnknown?pieceKey(r.nxt):null;
+    if(lastT.c!==c||lastT.n!==n){lastT.c=c;lastT.r=r.cur.map(p=>p.join(',')).join(';');lastT.n=n;delete lastT.adv;saveGames();}}
+  if(r.nxtTiles.length&&r.nxtTiles.every(t=>t.sig))prevNext=r.nxtTiles;
+  const m=Math.max(0,...r.board.filter(l=>l<=MAXL),...r.cur.map(p=>p[2]),...r.nxt.map(p=>p[2]));
+  // une fusion fait monter de 2 niveaux au plus : un saut plus grand est une erreur de lecture, on l'ignore
+  if(m>maxReached&&(maxReached===0||m<=maxReached+2)){
+    if(pendingMax===m)setMax(m);else pendingMax=m;              // confirmé sur 2 tours de lecture
+  }else pendingMax=0;
+  prevBoard=r.board;
+}
+const pdesc=(p,u)=>(p.length?p.map(x=>'N'+x[2]).join('-'):'')+(u?(p.length?'-':'')+'?'.repeat(u):'')||'rien';
+// calcul du conseil dans un Web Worker (repli sur le calcul direct si le navigateur le refuse)
+let worker=null,reqId=0,pending=null;
+try{
+  const src=document.getElementById('coreSrc').textContent+`
+onmessage=e=>{const d=e.data;let out;
+  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));out=solve(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);}
+  catch(err){out={err:'Erreur de calcul : '+err.message};}
+  postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;');
+  worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+  worker.onmessage=e=>{if(!pending||e.data.id!==pending.id)return;const p=pending;pending=null;finish(p.r,p.ms,p.warn,p.trash,e.data.out,p.t0);};
+  worker.onerror=()=>{worker=null;if(pending){const p=pending;pending=null;solvedSig=null;}};
+}catch(e){worker=null;}
+function show(r,ms){
+  drawSeen('curCv',r.curBad?null:r.curTiles);drawSeen('nxtCv',r.nxtBad?null:r.nxtTiles);
+  $('advStatus').textContent=`Pièce ${pdesc(r.cur,r.curUnknown)} · suivante ${pdesc(r.nxt,r.nxtUnknown)} · ${Math.round(ms)} ms`;
+  const warn=[];
+  if(r.unknown.length)warn.push(`${r.unknown.length} objet(s) du plateau non reconnu(s) (?) : ajoute leur capture dans « Niveaux ».`);
+  if(r.nxtBad)r.nxtUnknown=1;
+  if(r.nxtUnknown)warn.push('Pièce suivante non reconnue : calcul sans elle.');
+  if(r.curBad){$('rot').textContent='…';$('info').className='err';
+    $('info').textContent='Pièce actuelle illisible (animation en cours ?). Si ça dure, recalibre la zone de la pièce.';
+    drawPiece(null);drawBoard(r.board,null);return;}
+  const trash=[...new Set(r.board.filter(l=>DEAD.has(l)))].sort((a,b)=>a-b);
+  if(r.curUnknown){
+    $('rot').textContent='?';$('info').className='err';
+    $('info').textContent=['Objet non reconnu dans la pièce actuelle : ajoute sa capture dans « Niveaux ».'].concat(warn).join('\n');
+    drawPiece(null);drawBoard(r.board,null);return;}
+  // niveau max réellement présent (le N5 qui vient d'apparaître compte tout de suite pour les pièces probables)
+  const effMax=Math.max(maxReached,...r.board.filter(l=>l<=MAXL&&(maxReached===0||l<=maxReached+2)));
+  const dist=pieceDist(effMax);
+  const nxt=r.nxtUnknown?[]:r.nxt;
+  if(worker){
+    // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
+    pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
+    $('advStatus').textContent+=' · calcul…';
+    worker.postMessage({id:reqId,hi:HI_MULT,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    return;}
+  const t0=performance.now();
+  const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
+  const o0=solve(r.board,r.cur,nxt,effMax,dist.list,anc);
+  if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
+  finish(r,ms,warn,trash,o0,t0);
+}
+function finish(r,ms,warn,trash,out,t0){
+  curAnchorShown=r.curAnchor;
+  $('advStatus').textContent=`Pièce ${pdesc(r.cur,r.curUnknown)} · suivante ${pdesc(r.nxt,r.nxtUnknown)} · lecture ${Math.round(ms)} ms · calcul ${Math.round(performance.now()-t0)} ms`;
+  const best=out.list&&out.list[0];
+  const lt=curGame&&curGame.turns[curGame.turns.length-1];
+  // fin de partie : confirmée sur 2 lectures du même plateau (une pièce mal lue ne doit pas clore la partie)
+  if(out.over&&curGame&&curGame.turns.length){if(overBoard===bstr(r.board))endGame('bloqué');else overBoard=bstr(r.board);}else overBoard=null;
+  if(best&&lt&&lt.b===bstr(r.board)&&!lt.adv){lt.adv={k:best.k,idx:best.idx,after:bstr(best.after)};if(best.uncertain)lt.adv.alts=best.outs.map(x=>bstr(x.b));saveGames();}
+  $('advStatus').textContent+=` · anticipation ${out.depth||1} tour${(out.depth||1)>1?'s':''}`;
+  // marteau conseillé : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau s'utilise un tour avant,
+  // quand aucun coup ne laisse de place à la pièce suivante
+  if(best&&best.dead&&out.hammer&&!out.hammer.move.dead){
+    const h=out.hammer,m=h.move,c=CELLS[h.cell];
+    $('rot').textContent='Marteau !';$('info').className='err';
+    $('info').textContent=[`Utilise le marteau sur le N${h.level} de la colonne ${c.c+1}, ligne ${c.row+1} (étiquette rouge).`,
+      `Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`,
+      'Sans marteau, la pièce suivante ne rentrera nulle part et la partie s\'arrêtera.'].concat(warn).join('\n');
+    drawPiece(m.shape);drawBoard(h.board,m,h.cell,undefined,h.level);return;}
+  if(!best){$('rot').textContent=out.over?'Fin de partie':'—';$('info').className=out.over?'':'err';$('info').textContent=[out.err||''].concat(warn).join('\n');drawPiece(null);drawBoard(r.board,null);return;}
+  $('rot').textContent=best.k?`Tourner ${best.k}× ↻`:'Poser tel quel';
+  const lines=[best.merges.length?'Fusion : '+mtxt(best.merges):'Pas de fusion ce tour'];
+  if(best.nextMerges.length)lines.push('Tour suivant : '+mtxt(best.nextMerges));
+  if(best.dead)lines.push('⚠ Quel que soit le coup, la pièce suivante ne passera pas');
+  if(best.uncertain){
+    if(best.bestAt!==undefined&&best.gap>20)lines.push(`Fusion idéale sur la case ★ : si le point du jeu s'affiche ailleurs, essaie de l'y amener (le conseil reste valable sinon).`);
+    else lines.push(`L'emplacement de la fusion est incertain (${best.outs.length} cas possibles) : peu importe où, le conseil en tient compte.`);}
+  if(out.risk)lines.push(`Risque de blocage au tour d'après : ${Math.round(100*out.risk)} %`);
+  $('info').className=warn.length?'err':'';
+  if(best.newDead.length)lines.push('⚠ Ce coup crée le premier N'+(best.newDead[best.newDead.length-1]+4)+' : '+best.newDead.map(l=>'N'+l).join(', ')+' ne sortira plus');
+  if(trash.length)lines.push('Poubelle (ne fusionnera plus) : '+trash.map(l=>'N'+l).join(', '));
+  $('info').textContent=lines.concat(warn).join('\n');
+  drawPiece(best.shape);drawBoard(r.board,best,undefined,best.uncertain&&best.gap>20?best.bestAt:undefined);
+}
+function tile(ctx,x,y,s,l,ghost){
+  const unk=l===BLOCK;
+  ctx.fillStyle=unk?'#5a463a':l?COLORS[l]:'#110c0a';ctx.strokeStyle=ghost?'#f2b632':'#0a0705';ctx.lineWidth=ghost?8:3;
+  ctx.beginPath();ctx.roundRect(x,y,s,s,s*.2);ctx.fill();ctx.stroke();
+  if(l){ctx.fillStyle=unk?'#fff':ink(COLORS[l]);ctx.font=`800 ${s*.45}px Segoe UI,system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(unk?'?':l,x+s/2,y+s/2+2);}
+}
+function drawBoard(board,best,hamCell,starCell,hamLevel){
+  const cv=$('boardCv'),ctx=cv.getContext('2d');ctx.clearRect(0,0,640,640);
+  ctx.fillStyle='#261d18';ctx.beginPath();ctx.roundRect(0,0,640,640,24);ctx.fill();
+  const ghost={};if(best)best.idx.forEach((j,n)=>ghost[j]=best.shape[n][2]);
+  CELLS.forEach((o,i)=>{const x=14+o.c*124,y=10+(o.row+(o.c%2)*.5)*124;
+    const l=ghost[i]!==undefined?ghost[i]:board[i];tile(ctx,x,y,108,l,ghost[i]!==undefined);
+    if(i===hamCell){ctx.fillStyle='#e8664a';ctx.beginPath();ctx.roundRect(x-6,y-8,74,36,10);ctx.fill();ctx.fillStyle='#fff';ctx.font='800 24px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✕ N'+hamLevel,x+31,y+11);}
+    if(i===starCell){ctx.fillStyle='#f2b632';ctx.font='800 40px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',x+92,y+18);}});
+}
+// pièce telle que lue dans le jeu (orientation d'origine) ; « ? » = tuile non reconnue
+function drawSeen(id,tiles){
+  const cv=$(id),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);if(!tiles||!tiles.length)return;
+  const pts=tiles.map(t=>[t.dq,t.dr+t.dq/2,t.l===null?BLOCK:t.l]).filter(p=>p[2]!==0);if(!pts.length)return;
+  const span=Math.max(1,...pts.map(a=>a[0]))-Math.min(...pts.map(a=>a[0]))+1,spanY=Math.max(...pts.map(a=>a[1]))-Math.min(...pts.map(a=>a[1]))+1;
+  const p=Math.min(W/span,H/spanY,W/2.2)*0.92,s=p*0.86;
+  const mx=(Math.min(...pts.map(a=>a[0]))+Math.max(...pts.map(a=>a[0])))/2,my=(Math.min(...pts.map(a=>a[1]))+Math.max(...pts.map(a=>a[1])))/2;
+  const ai=tiles.filter(t=>(t.l===null?BLOCK:t.l)!==0).findIndex(t=>t.anchor);
+  pts.forEach(([x,y,l],i)=>{const X=W/2+(x-mx)*p-s/2,Y=H/2+(y-my)*p-s/2;tile(ctx,X,Y,s,l,false);if(i===ai)dot(ctx,X+s*0.82,Y+s*0.18,s*0.12);});
+}
+function dot(ctx,x,y,r){ctx.fillStyle='#fff';ctx.strokeStyle='#1a1310';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();}
+let curAnchorShown;   // indice de la tuile « point » de la pièce actuelle
+function drawPiece(shape){
+  const cv=$('pieceCv'),ctx=cv.getContext('2d');ctx.clearRect(0,0,192,160);if(!shape)return;
+  const p=52,pts=shape.map(s=>[s[0]*p,(s[1]+s[0]/2)*p,s[2]]);
+  const mx=(Math.min(...pts.map(a=>a[0]))+Math.max(...pts.map(a=>a[0])))/2,my=(Math.min(...pts.map(a=>a[1]))+Math.max(...pts.map(a=>a[1])))/2;
+  pts.forEach(([x,y,l],i)=>{tile(ctx,96+x-mx-22,80+y-my-22,44,l,true);if(i===curAnchorShown)dot(ctx,96+x-mx+14,80+y-my-14,6);});
+}
+
+/* --- niveaux : captures de référence --- */
+let target=null;   // niveau en attente d'une capture collée
+function renderLevels(){
+  $('levels').innerHTML=Array.from({length:MAXL},(_,i)=>{const l=i+1,refs=levels[l]||[];
+    return `<div class="lv${target===l?' target':''}${DEAD.has(l)?' dead':''}" data-l="${l}"><span class="n" style="background:${COLORS[l]};color:${ink(COLORS[l])}">${l}</span>
+      <div class="thumbs">${refs.length?refs.map((r,k)=>`<img src="${r.img}" alt="Référence ${k+1} du niveau ${l}" title="Clique pour retirer cette capture" data-k="${k}">`).join(''):'<span class="none">aucune capture</span>'}</div>
+      <div class="acts"><button class="small" data-a="paste">${target===l?'Ctrl+V…':'Coller'}</button><button class="small" data-a="file">Fichier</button><button class="small" data-a="game" ${lastImg?'':'disabled'}>Dans le jeu</button>${DEAD.has(l)?'<span class="state">poubelle</span>':''}</div></div>`;}).join('');
+  $('histInfo').innerHTML=`Plus haut niveau obtenu dans la partie : <b>${maxReached?'N'+maxReached:'aucun'}</b> <button class="small" data-a="dn" aria-label="Baisser">−</button> <button class="small" data-a="up" aria-label="Monter">+</button><br>`+
+    (DEAD.size?`Poubelle : <b>${[...DEAD].map(l=>'N'+l).join(', ')}</b> ne sortent plus (N5 → N1, N6 → N2, N7 → N3 ; le N4 continue de sortir).`
+              :`Dès le premier N5, le N1 ne sortira plus (puis N6 → N2, N7 → N3). Corrige le niveau si l'outil a été lancé en cours de partie.`);
+}
+function addRef(l,img,x,y,w){
+  // miniature + empreinte de la tuile
+  const c=document.createElement('canvas');c.width=48;c.height=48;
+  const t=document.createElement('canvas');t.width=img.width;t.height=img.height;t.getContext('2d').putImageData(img,0,0);
+  c.getContext('2d').drawImage(t,x,y,w,w,0,0,48,48);
+  (levels[l]=levels[l]||[]).push({h:colorHist(img,x,y,w,w),img:c.toDataURL('image/png')});
+  if(levels[l].length>8)levels[l].shift();
+  if(!store.set('levels',levels))setStatus("Capture ajoutée, mais impossible de l'enregistrer pour la prochaine fois (stockage du navigateur indisponible).",true);
+  else setStatus(`Capture ajoutée au niveau ${l}.`);
+  solvedSig=null;lastSig=null;renderLevels();
+}
+function addFromBlob(l,blob){
+  const im=new Image();im.onload=()=>{
+    const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.drawImage(im,0,0);
+    const img=x.getImageData(0,0,c.width,c.height),t=tileFromImage(img);addRef(l,img,t.x,t.y,t.w);URL.revokeObjectURL(im.src);};
+  im.onerror=()=>setStatus("Cette image n'a pas pu être lue.",true);
+  im.src=URL.createObjectURL(blob);
+}
+$('levels').onclick=e=>{
+  const row=e.target.closest('.lv');if(!row)return;const l=+row.dataset.l;
+  const im=e.target.closest('img');
+  if(im){levels[l].splice(+im.dataset.k,1);store.set('levels',levels);solvedSig=null;renderLevels();setStatus(`Capture retirée du niveau ${l}.`);return;}
+  const a=e.target.closest('button')?.dataset.a;if(!a)return;
+  if(a==='paste'){target=target===l?null:l;renderLevels();if(target)setStatus(`Colle maintenant (Ctrl+V) la capture d'un objet de niveau ${l}.`);}
+  if(a==='file'){target=l;$('fileIn').value='';$('fileIn').click();}
+  if(a==='game')pickInGame(l);
+
+};
+$('histInfo').onclick=e=>{const a=e.target.closest('button')?.dataset.a;if(a==='up')setMax(maxReached+1);if(a==='dn')setMax(maxReached-1);};
+$('fileIn').onchange=e=>{const f=e.target.files[0];if(f&&target)addFromBlob(target,f);target=null;renderLevels();};
+document.addEventListener('paste',e=>{
+  if(!target)return;
+  const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
+  if(!it){setStatus("Le presse-papiers ne contient pas d'image. Fais une capture avec Win+Maj+S puis Ctrl+V.",true);return;}
+  e.preventDefault();addFromBlob(target,it.getAsFile());target=null;renderLevels();
+});
+
+/* --- calque sur l'image du jeu (calibrage et choix d'un objet) --- */
+let ovMode=null,ovImg=null,cpts=[],draftCfg=null,pickLevel=null;
+function openOverlay(mode,txt){
+  if(!lastImg){setStatus("Pas encore d'image du jeu : choisis d'abord la fenêtre du jeu.",true);return false;}
+  ovMode=mode;ovImg=lastImg;const cv=$('ovCv');cv.width=ovImg.width;cv.height=ovImg.height;cv.getContext('2d').putImageData(ovImg,0,0);
+  $('ovTxt').textContent=txt;$('ovOk').hidden=true;$('ovRedo').hidden=mode!=='calib';$('ov').hidden=false;androidFull(true);return true;
+}
+function closeOverlay(){$('ov').hidden=true;ovMode=null;solvedSig=null;lastSig=null;androidFull(menuOpen);}
+$('ovCancel').onclick=closeOverlay;
+const STEPS=["1/6 · Clique au CENTRE de la case en haut à gauche du plateau",
+"2/6 · Clique au CENTRE de la case en bas à droite du plateau",
+"3/6 · Pièce actuelle : coin HAUT-GAUCHE d'une zone large autour de la pièce (sans les boutons de rotation et de marteau)",
+"4/6 · Pièce actuelle : coin BAS-DROITE de cette zone",
+"5/6 · Pièce suivante : coin HAUT-GAUCHE de l'intérieur du cadre sombre",
+"6/6 · Pièce suivante : coin BAS-DROITE de l'intérieur du cadre sombre"];
+$('bCalib').onclick=()=>{if(openOverlay('calib',STEPS[0]))cpts=[];};
+$('ovRedo').onclick=()=>{if(lastImg)ovImg=lastImg;const cv=$('ovCv');cv.getContext('2d').putImageData(ovImg,0,0);cpts=[];$('ovOk').hidden=true;$('ovTxt').textContent=STEPS[0];};
+function pickInGame(l){pickLevel=l;openOverlay('pick',`Clique sur un objet de niveau ${l} (plateau ou pièces)`);}
+$('ovCv').onclick=e=>{
+  const cv=e.currentTarget,r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*cv.width/r.width,y=(e.clientY-r.top)*cv.height/r.height;
+  const ctx=cv.getContext('2d'),lw=Math.max(3,cv.width/300);
+  if(ovMode==='pick'){
+    const t=tileAt(ovImg,x,y);
+    if(!t){$('ovTxt').textContent="Aucun objet trouvé à cet endroit : clique bien au milieu d'un objet.";return;}
+    addRef(pickLevel,ovImg,t.x,t.y,t.w);closeOverlay();return;
+  }
+  if(cpts.length>=6)return;
+  cpts.push([x,y]);ctx.strokeStyle='#ff00ff';ctx.lineWidth=lw;ctx.beginPath();ctx.arc(x,y,lw*3,0,7);ctx.stroke();
+  if(cpts.length<6){$('ovTxt').textContent=STEPS[cpts.length];return;}
+  const rect=(a,b)=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])];
+  draftCfg={w:cv.width,h:cv.height,tl:cpts[0],br:cpts[1],cur:rect(cpts[2],cpts[3]),next:rect(cpts[4],cpts[5])};
+  // aperçu de ce que l'outil va lire
+  ctx.putImageData(ovImg,0,0);
+  const rd=readAll(ovImg,draftCfg,levels,smallRefs),g=boardGeom(draftCfg);
+  ctx.lineWidth=lw;ctx.textAlign='center';ctx.textBaseline='middle';
+  const mark=(cx,cy,s,l)=>{ctx.strokeStyle=l===null?'#ff3b3b':'#f2b632';ctx.strokeRect(cx-s/2,cy-s/2,s,s);
+    if(l!==0){ctx.font=`800 ${Math.round(s*.45)}px system-ui`;ctx.fillStyle='#000';ctx.fillText(l===null?'?':l,cx+2,cy+2);ctx.fillStyle='#ff00ff';ctx.fillText(l===null?'?':l,cx,cy);}};
+  rd.cells.forEach(c=>mark(c.cx,c.cy,c.size,c.l));
+  for(const z of [draftCfg.cur,draftCfg.next]){ctx.strokeStyle='#00e5ff';ctx.strokeRect(z[0],z[1],z[2]-z[0],z[3]-z[1]);}
+  rd.curTiles.concat(rd.nxtTiles).forEach(t=>mark(t.cx,t.cy,t.size,t.l));
+  $('ovTxt').textContent="Vérifie : un carré par case du plateau et par objet des pièces, avec son niveau (« ? » = non reconnu, à ajouter dans Niveaux). Puis Valider.";
+  $('ovOk').hidden=false;
+};
+function tileAt(img,x,y){
+  // tuile sous le clic : case du plateau si calibré, sinon objet détecté autour du clic
+  if(cfg&&cfg.w===img.width){const g=boardGeom(cfg);
+    for(const [cx,cy] of g.centers)if(Math.abs(x-cx)<g.size/2&&Math.abs(y-cy)<g.size/2)return {x:cx-g.size/2,y:cy-g.size/2,w:g.size};}
+  const R=cfg?boardGeom(cfg).size*1.6:120;
+  const ts=findTiles(img,[x-R,y-R,x+R,y+R],8,0).filter(t=>x>=t.x&&x<=t.x+t.w&&y>=t.y&&y<=t.y+t.w);
+  return ts.length?ts.reduce((a,b)=>b.w<a.w?b:a):null;
+}
+$('ovOk').onclick=()=>{
+  if(!draftCfg)return;cfg=draftCfg;store.set('cfg',cfg);closeOverlay();
+  setStatus('Calibrage enregistré. Le conseil se met à jour en direct.');
+};
+
+/* --- fenêtre flottante (toujours au premier plan) --- */
+$('bPip').onclick=async()=>{
+  if(pipWin){pipWin.close();return;}
+  try{
+    pipWin=await documentPictureInPicture.requestWindow({width:340,height:640});
+    [...document.styleSheets].forEach(ss=>{try{const s=document.createElement('style');s.textContent=[...ss.cssRules].map(r=>r.cssText).join('\n');pipWin.document.head.appendChild(s);}catch(e){}});
+    pipWin.document.body.style.margin='0';
+    pipWin.document.body.append($('advice'));
+    $('bPip').textContent='Fermer la fenêtre flottante';
+    pipWin.addEventListener('pagehide',()=>{$('advHome').append($('advice'));pipWin=null;$('bPip').textContent='Fenêtre flottante';});
+  }catch(e){setStatus("Fenêtre flottante impossible dans ce navigateur (Chrome ou Edge récent requis).",true);}
+};
+
+['advice','rot','info','boardCv','pieceCv','advStatus','curCv','nxtCv'].forEach($);
+// objectif : survie (réglage par défaut) ou viser N10 (hauts niveaux regroupés plus fortement)
+function setGoal(g){HI_MULT=g==='n10'?4:2;$('bGoal').textContent=g==='n10'?'Objectif : viser N10':'Objectif : survie';$('bGoal').setAttribute('aria-pressed',g==='n10');store.set('goal',g);solvedSig=null;lastSig=null;}
+setGoal(store.get('goal','survie'));
+// marteau : une fois par partie (à remettre à « disponible » à chaque nouvelle partie, automatique quand le plateau se vide)
+let hammerOK=store.get('hammer',true);
+function setHammer(v){hammerOK=v;$('bHammer').textContent=v?'Marteau : disponible':'Marteau : utilisé';$('bHammer').setAttribute('aria-pressed',!v);store.set('hammer',v);solvedSig=null;lastSig=null;
+  if(!v&&curGame&&curGame.turns.length)curGame.turns[curGame.turns.length-1].hammer=1;}
+setHammer(hammerOK);
+$('bHammer').onclick=()=>setHammer(!hammerOK);
+$('bGoal').onclick=()=>setGoal(HI_MULT===4?'survie':'n10');
+renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
+if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
+/* --- appli Android : images fournies par l'appli (capture de l'écran du téléphone) --- */
+let menuOpen=false,fullNow=false,resumeAt=0;
+function androidFull(v){
+  if(!window.Android)return;
+  if(v===fullNow)return;fullNow=v;
+  // en plein écran, la capture montrerait cette page : on garde la dernière image du jeu et on attend la fin du retour
+  if(!v)resumeAt=performance.now()+600;
+  try{Android.setFullscreen(v);}catch(e){}
+}
+function setMenu(v){menuOpen=v;document.body.classList.toggle('compact',!v);$('bMenu').textContent=v?'✕':'⚙';
+  $('bMenu').setAttribute('aria-label',v?'Revenir au conseil':'Réglages');androidFull(v||!$('ov').hidden);}
+if(window.Android){
+  document.body.classList.add('android','compact');
+  $('bMenu').onclick=()=>setMenu(!menuOpen);
+  ['bCalib','bPause'].forEach(b=>$(b).disabled=false);
+  setStatus(cfg?"Capture en cours.":"Capture en cours. Touche ⚙ puis « Calibrer ».");
+  (async function androidLoop(){
+    while(true){
+      const t=performance.now();
+      if(!fullNow&&t>=resumeAt){
+        try{const res=await fetch('/frame/latest.jpg?t='+Date.now(),{cache:'no-store'});
+          if(res.status===200){const bmp=await createImageBitmap(await res.blob());
+            if(!fullNow&&performance.now()>=resumeAt)onFrame(toImageData(bmp,bmp.width,bmp.height));bmp.close&&bmp.close();}}
+        catch(e){}
+      }
+      await new Promise(r=>setTimeout(r,Math.max(40,150-(performance.now()-t))));
+    }
+  })();
+}
+</script>
+</body>
+</html>
