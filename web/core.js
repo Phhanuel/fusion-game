@@ -332,15 +332,16 @@ function readPiece(img,rect,refs,minW,expT,mode){
 }
 // le cadre de la pièce suivante est petit : on lit un peu au-delà pour ne pas couper une colonne de 3 tuiles
 const grow=(r,f)=>{const dx=(r[2]-r[0])*f,dy=(r[3]-r[1])*f;return [r[0]-dx,r[1]-dy,r[2]+dx,r[3]+dy];};
-// dead : niveaux qui ne sortent plus (une pièce n'en contient jamais) ; sans ce filtre, les petites tuiles N4
-// de la pièce suivante étaient lues N3 une fois sur six en fin de partie
+// dead : niveaux qui ne sortent plus depuis au moins 2 tours, appliqué à la seule pièce suivante (petites tuiles :
+// N4 lu N3 une fois sur six en fin de partie). Pas à la pièce actuelle : une pièce tirée juste avant le 1er N5
+// peut encore contenir un N1, qui devenait alors « objet non reconnu »
 function readAll(img,cfg,refs,smallRefs,dead){
   const g=boardGeom(cfg),board=[],unknown=[],cells=[];
   g.centers.forEach(([cx,cy])=>{const c=classify(img,cx,cy,g.size,refs);
     cells.push({cx,cy,size:g.size,l:c.l,d:c.d});
     if(c.l===null){unknown.push({cx,cy,size:g.size});board.push(BLOCK);}else board.push(c.l);});
   const minW=0.2*g.size;
-  const live=withoutLevels(refs,dead),c=readPiece(img,cfg.cur,live,minW,0.86*g.size),n=readPiece(img,grow(cfg.next,0.15),withoutLevels(mergeRefs(refs,smallRefs),dead),minW,0.38*g.size,'bright');
+  const c=readPiece(img,cfg.cur,refs,minW,0.86*g.size),n=readPiece(img,grow(cfg.next,0.15),withoutLevels(mergeRefs(refs,smallRefs),dead),minW,0.38*g.size,'bright');
   return {board,cur:c.piece,nxt:n.piece,curAnchor:c.anchor,nxtAnchor:n.anchor,unknown,curUnknown:c.unknown.length,nxtUnknown:n.unknown.length,curBad:!!c.bad,nxtBad:!!n.bad,
           cells,curTiles:c.tiles,nxtTiles:n.tiles};
 }
