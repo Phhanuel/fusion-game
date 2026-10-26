@@ -1053,6 +1053,13 @@ function trackPieces(r){
   if(empty&&prevBoard&&prevBoard.some(l=>l>0)){endGame('plateau vidé');setMax(0);}   // nouvelle partie
   const lastT=curGame&&curGame.turns[curGame.turns.length-1];
   const fresh=!lastT||lastT.b!==bstr(r.board);     // un tour = un nouveau plateau (évite les doublons)
+  // marteau utilisé dans le jeu : une seule relique disparaît et rien d'autre ne change
+  // (une pose ajoute toujours au moins une relique, même avec fusion) → le marteau passe à « utilisé » tout seul
+  if(fresh&&prevBoard&&lastT&&lastT.b===bstr(prevBoard)){
+    const d=r.board.map((l,i)=>l!==prevBoard[i]?i:-1).filter(i=>i>=0);
+    if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0){
+      if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il ne sera plus proposé avant la prochaine partie.');}
+      lastT.hammer=d[0];delete lastT.adv;delete lastT.f;}}
   if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
   else if(!fresh&&lastT&&r.cur.length&&!r.curUnknown){
     // même plateau mais pièces relues différemment (fin d'animation) : on corrige le tour enregistré
