@@ -83,7 +83,7 @@ function evaluate(b,dead){
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
     // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
     // Rejeu de 6 parties (6 tirages) : 515 tours tenus sur 550 en moyenne contre 472 sans ce terme.
-    if(!b[i]){s+=24;let e=0;for(const n of NB[i])if(!b[n])e++;if(e>=2)s+=1.5;s+=e*(e-1)/2;continue;}
+    if(!b[i]){s+=24;let e=0;for(const n of NB[i])if(!b[n])e++;if(e>=2)s+=1.5;s+=MARGE*e*(e-1)/2;continue;}
     if(b[i]>MAXL||dead.has(b[i]))continue;   // objet non reconnu ou poubelle : simple case perdue
     let same=0,empty=0;for(const n of NB[i]){if(b[n]===b[i])same++;if(!b[n])empty++;}
     // hauts niveaux (N6+) qui se touchent : bonus exponentiel, pour préparer les fusions vers N9/N10
@@ -103,7 +103,8 @@ function bestReply(b,rots,max,w,anchor){
   return best;
 }
 // élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
-let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2;
+// MARGE = 2 avec HI_MULT = 4 : mode « viser N10 » (simulation : parties plus longues, 2 N10 sur 80 parties)
+let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2,MARGE=1;
 function solve(board,cur,nxt,maxReached,dist,anc){
   anc=anc||{};
   // maxReached : plus haut niveau déjà obtenu (décide des niveaux poubelle)
