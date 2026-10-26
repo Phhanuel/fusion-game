@@ -448,12 +448,15 @@ function tile(ctx,x,y,s,l,ghost){
   if(l){ctx.fillStyle=unk?'#fff':ink(COLORS[l]);ctx.font=`800 ${s*.45}px Segoe UI,system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(unk?'?':l,x+s/2,y+s/2+2);}
 }
 function drawBoard(board,best,hamCell,starCell,hamLevel){
+  // case où tombera la fusion : tuile « point » de la pièce posée
+  const dotCell=best&&curAnchorShown!==undefined?best.idx[curAnchorShown]:undefined;
   const cv=$('boardCv'),ctx=cv.getContext('2d');ctx.clearRect(0,0,640,640);
   ctx.fillStyle='#261d18';ctx.beginPath();ctx.roundRect(0,0,640,640,24);ctx.fill();
   const ghost={};if(best)best.idx.forEach((j,n)=>ghost[j]=best.shape[n][2]);
   CELLS.forEach((o,i)=>{const x=14+o.c*124,y=10+(o.row+(o.c%2)*.5)*124;
     const l=ghost[i]!==undefined?ghost[i]:board[i];tile(ctx,x,y,108,l,ghost[i]!==undefined);
     if(i===hamCell){ctx.fillStyle='#e8664a';ctx.beginPath();ctx.roundRect(x-6,y-8,74,36,10);ctx.fill();ctx.fillStyle='#fff';ctx.font='800 24px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✕ N'+hamLevel,x+31,y+11);}
+    if(i===dotCell)dot(ctx,x+90,y+18,11);
     if(i===starCell){ctx.fillStyle='#f2b632';ctx.font='800 40px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',x+92,y+18);}});
 }
 // pièce telle que lue dans le jeu (orientation d'origine) ; « ? » = tuile non reconnue
