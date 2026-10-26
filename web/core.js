@@ -84,7 +84,10 @@ function evaluate(b,dead){
     // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
     // Rejeu de 6 parties (6 tirages) : 515 tours tenus sur 550 en moyenne contre 472 sans ce terme.
     if(!b[i]){s+=24;let e=0;for(const n of NB[i])if(!b[n])e++;if(e>=2)s+=1.5;s+=MARGE*e*(e-1)/2;continue;}
-    if(b[i]>MAXL||dead.has(b[i]))continue;   // objet non reconnu ou poubelle : simple case perdue
+    if(b[i]>MAXL)continue;   // objet non reconnu : simple case perdue
+    // poubelle : malus de 60 (stratégie « zéro poubelle » : finir les N1 avant le 1er N5, les N2 avant le 1er N6…)
+    // 120 parties simulées : N9 atteint 92 fois contre 73, mieux sur les 6 séries ; 2,5 poubelles en fin de partie contre 3,1
+    if(dead.has(b[i])){s-=60;continue;}
     let same=0,empty=0;for(const n of NB[i]){if(b[n]===b[i])same++;if(!b[n])empty++;}
     // hauts niveaux (N6+) qui se touchent : bonus exponentiel, pour préparer les fusions vers N9/N10
     // (HI_MULT = 2 : +2,5 % de tours tenus au rejeu de 14 parties ; 4 = mode « viser N10 » : 2x plus de N9 en simulation)
