@@ -233,7 +233,7 @@ function recordTurn(r){
   // c'est ce qui permettra de découvrir la règle du jeu)
   if(prev&&prev.adv){const nb=bstr(r.board),alts=prev.adv.alts||[];
     prev.f=nb===prev.adv.after||alts.includes(nb)?1:0;if(alts.length&&alts.includes(nb))prev.land=alts.indexOf(nb);}
-  curGame.turns.push({b:bstr(r.board),c:pieceKey(r.cur),r:r.cur.map(p=>p.join(',')).join(';'),a:r.curAnchor,na:r.nxtAnchor,n:r.nxt.length&&!r.nxtUnknown?pieceKey(r.nxt):null,m:maxReached});
+  curGame.turns.push({b:bstr(r.board),c:pieceKey(r.cur),r:r.cur.map(p=>p.join(',')).join(';'),a:r.curAnchor,na:r.nxtAnchor,nr:r.nxt.length?r.nxt.map(p=>p.join(',')).join(';'):null,n:r.nxt.length&&!r.nxtUnknown?pieceKey(r.nxt):null,m:maxReached});
   curGame.max=Math.max(curGame.max,maxReached);
   saveGames();renderGames();
 }
