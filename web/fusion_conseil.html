@@ -1143,7 +1143,10 @@ function trackPieces(r){
     // la relique doit être là depuis au moins 2 tours enregistrés : au 1er tour d'une partie, un N1 lu en double
     // pendant l'animation avait fait passer le marteau à « utilisé » pour toute la partie
     const T=curGame.turns,before=T.length>=2?T[T.length-2].b:null;
-    if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0&&before&&before[d[0]]===lastT.b[d[0]]){
+    // relique déjà là au tour d'avant, ou posée par une lecture plausible (pas plus de cases remplies que de tuiles
+    // dans la pièce) : la règle « là depuis 2 tours » ratait un marteau donné juste après la pose (partie de 204 tours)
+    const added=before?[...before].filter((c,j)=>c==='0'&&lastT.b[j]!=='0').length:99,prevSize=T.length>=2?T[T.length-2].c.split(';').length:0;
+    if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0&&before&&(before[d[0]]===lastT.b[d[0]]||added<=prevSize)){
       if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il ne sera plus proposé avant la prochaine partie.');}
       lastT.hammer=d[0];delete lastT.adv;delete lastT.f;}}
   if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
