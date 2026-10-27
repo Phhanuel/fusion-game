@@ -234,7 +234,11 @@ function resolveAll(b0,pl,cap=6,anchor){
   const b=b0.slice();pl.idx.forEach((j,n)=>b[j]=pl.shape[n][2]);rec(b,pl.idx.slice(),-1,[]);
   return out.length?out:[resolve(b0,pl,anchor)];
 }
-const mergePts=m=>m.reduce((s,x,j)=>s+15*Math.pow(2,x.to-2)*(1+0.3*j)-(x.size===4?4:0),0);
+// MERGE_W = 0,5 : les fusions pèsent moitié moins face à l'état du plateau (place, paires, poubelles).
+// Simulation (simulateur corrigé, mêmes pièces) : poids 0,4 sur 240 parties → N10 dans 6 parties contre 2,
+// 132 tours contre 125, 1,10 N9 par partie contre 1,05 ; poids 0,5 sur 160 parties → N10 6 contre 2, 1,14 N9 contre 1,05.
+const MERGE_W=0.5;
+const mergePts=m=>MERGE_W*m.reduce((s,x,j)=>s+15*Math.pow(2,x.to-2)*(1+0.3*j)-(x.size===4?4:0),0);
 function survival(b){
   let pair=false;
   for(let i=0;i<N;i++){if(b[i])continue;
@@ -598,7 +602,11 @@ function resolveAll(b0,pl,cap=6,anchor){
   const b=b0.slice();pl.idx.forEach((j,n)=>b[j]=pl.shape[n][2]);rec(b,pl.idx.slice(),-1,[]);
   return out.length?out:[resolve(b0,pl,anchor)];
 }
-const mergePts=m=>m.reduce((s,x,j)=>s+15*Math.pow(2,x.to-2)*(1+0.3*j)-(x.size===4?4:0),0);
+// MERGE_W = 0,5 : les fusions pèsent moitié moins face à l'état du plateau (place, paires, poubelles).
+// Simulation (simulateur corrigé, mêmes pièces) : poids 0,4 sur 240 parties → N10 dans 6 parties contre 2,
+// 132 tours contre 125, 1,10 N9 par partie contre 1,05 ; poids 0,5 sur 160 parties → N10 6 contre 2, 1,14 N9 contre 1,05.
+const MERGE_W=0.5;
+const mergePts=m=>MERGE_W*m.reduce((s,x,j)=>s+15*Math.pow(2,x.to-2)*(1+0.3*j)-(x.size===4?4:0),0);
 function survival(b){
   let pair=false;
   for(let i=0;i<N;i++){if(b[i])continue;
