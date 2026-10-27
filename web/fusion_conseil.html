@@ -1341,8 +1341,8 @@ $('bPip').onclick=async()=>{
 
 ['advice','rot','info','boardCv','pieceCv','advStatus','curCv','nxtCv'].forEach($);
 // objectif : survie (réglage par défaut) ou viser N10 (hauts niveaux regroupés plus fortement)
-function setGoal(g){HI_MULT=g==='n10'?4:2;MARGE=g==='n10'?2:1;$('bGoal').textContent=g==='n10'?'Objectif : viser N10':'Objectif : survie';$('bGoal').setAttribute('aria-pressed',g==='n10');store.set('goal',g);solvedSig=null;lastSig=null;}
-setGoal(store.get('goal','survie'));
+function setGoal(g){HI_MULT=g==='n10'?4:2;MARGE=g==='n10'?2:1;$('bGoal').textContent=g==='n10'?'Objectif : viser N10':'Objectif : survie';$('bGoal').setAttribute('aria-pressed',g==='n10');store.set('goal2',g);solvedSig=null;lastSig=null;}
+setGoal(store.get('goal2','survie'));   // nouvelle clé : revient au mode survie, désormais le meilleur aussi pour N10
 // marteau : une fois par partie (à remettre à « disponible » à chaque nouvelle partie, automatique quand le plateau se vide)
 let hammerOK=store.get('hammer',true);
 function setHammer(v){hammerOK=v;$('bHammer').textContent=v?'Marteau : disponible':'Marteau : utilisé';$('bHammer').setAttribute('aria-pressed',!v);store.set('hammer',v);solvedSig=null;lastSig=null;
