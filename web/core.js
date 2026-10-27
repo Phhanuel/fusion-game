@@ -112,6 +112,7 @@ function bestReply(b,rots,max,w,anchor){
 // élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
 // MARGE = 2 avec HI_MULT = 4 : mode « viser N10 » (simulation : parties plus longues, 2 N10 sur 80 parties)
 let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2,MARGE=1;
+let LIST_N=3;
 function solve(board,cur,nxt,maxReached,dist,anc){
   anc=anc||{};
   // maxReached : plus haut niveau déjà obtenu (décide des niveaux poubelle)
@@ -170,7 +171,32 @@ function solve(board,cur,nxt,maxReached,dist,anc){
   for(const o of res.slice(0,3))if(o.uncertain){
     const v=x=>x.m1+(x.v3!==undefined?x.v3:x.fut);const bo=o.outs.reduce((a,x)=>v(x)>v(a)?x:a);const wo=o.outs.reduce((a,x)=>v(x)<v(a)?x:a);
     o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
-  return {list:res.slice(0,3),depth,risk};
+  return {list:res.slice(0,LIST_N),depth,risk};
+}
+// ---- Coups jugés par simulation (Monte-Carlo) ----
+// Les 8 meilleurs coups du calcul habituel sont départagés en jouant, pour chacun, 32 fins de partie de 15 tours
+// (pièce suivante connue, puis pièces tirées selon les parties enregistrées, chaque pièce posée au mieux à 1 coup).
+// Mêmes tirages pour tous les coups comparés. Simulation sur 160 parties : N9 atteint 136 fois contre 121,
+// 143 tours contre 133, 1,27 N9 par partie contre 1,14. 15 tours : un horizon de 25 tours faisait moins bien.
+let MC_R=32,MC_D=15,MC_K=8;
+function mcRolloutScore(b,max,nxtRots,nxtAnc,D,seq){
+  let pts=0,bb=b,m=max;
+  const step=(rots,anc)=>{const br=bestReply(bb,rots,m,1,anc);if(!br)return false;pts+=mergePts(br.merges);bb=br.b;m=br.max;return true;};
+  if(nxtRots&&!step(nxtRots,nxtAnc))return pts-3000+evaluate(bb,deadFor(m));
+  for(let k=0;k<D;k++){const s=seq[k];const dz=deadFor(m);
+    if(s.rots[0].shape.some(p=>dz.has(p[2])))continue;
+    if(!step(s.rots,s.anc))return pts-3000*(D-k)/D-500+evaluate(bb,deadFor(m));}
+  return pts+evaluate(bb,deadFor(m));
+}
+function solveMC(board,cur,nxt,maxReached,dist,anc){
+  anc=anc||{};LIST_N=MC_K;let o;try{o=solve(board,cur,nxt,maxReached,dist,anc);}finally{LIST_N=3;}
+  if(!o.list||!dist||!dist.length||o.list.length<2){if(o.list)o.list=o.list.slice(0,3);return o;}
+  let seed=1+board.reduce((h,l,i)=>(h*31+l*7+i)%2147483646,17);const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  const pick=()=>{let r=rnd(),acc=0;for(const d of dist){acc+=d.p;if(r<=acc)return d;}return dist[dist.length-1];};
+  const seqs=[];for(let r=0;r<MC_R;r++){const q=[];for(let k=0;k<MC_D;k++){const d=pick();q.push({rots:d.rots,anc:Math.floor(rnd()*d.rots[0].shape.length)});}seqs.push(q);}
+  const r2=nxt.length?rotations(nxt,anc.nxt):null;
+  for(const c of o.list){let tot=0;const x=c.outs[0];for(const q of seqs)tot+=mcRolloutScore(x.b,x.max1,r2,anc.nxt,MC_D,q);c.mc=c.m1+tot/MC_R;}
+  o.list.sort((a,b)=>b.mc-a.mc);o.list=o.list.slice(0,3);o.mc=true;return o;
 }
 // Marteau (une fois par partie) : quelle relique détruire ? On teste chaque relique puis le meilleur coup qui suit.
 function solveHammer(board,cur,nxt,maxReached,dist,anc){

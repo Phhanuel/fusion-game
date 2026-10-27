@@ -377,11 +377,13 @@ function trackPieces(r){
 }
 const pdesc=(p,u)=>(p.length?p.map(x=>'N'+x[2]).join('-'):'')+(u?(p.length?'-':'')+'?'.repeat(u):'')||'rien';
 // calcul du conseil dans un Web Worker (repli sur le calcul direct si le navigateur le refuse)
+// coups départagés par simulation de fins de partie (voir solveMC)
+const USE_MC=false;   // activé une fois la vérification sur les N10 terminée
 let worker=null,reqId=0,pending=null;
 try{
   const src=document.getElementById('coreSrc').textContent+`
 onmessage=e=>{const d=e.data;let out;
-  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));out=solve(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);}
+  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
   postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
@@ -411,11 +413,11 @@ function show(r,ms){
     // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
     pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
     $('advStatus').textContent+=' · calcul…';
-    worker.postMessage({id:reqId,hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    worker.postMessage({id:reqId,mc:USE_MC,hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
-  const o0=solve(r.board,r.cur,nxt,effMax,dist.list,anc);
+  const o0=(USE_MC?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
   finish(r,ms,warn,trash,o0,t0);
 }
