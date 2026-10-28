@@ -178,15 +178,20 @@ function solve(board,cur,nxt,maxReached,dist,anc){
 // (pièce suivante connue, puis pièces tirées selon les parties enregistrées, chaque pièce posée au mieux à 1 coup).
 // Mêmes tirages pour tous les coups comparés. Simulation sur 160 parties : N9 atteint 136 fois contre 121,
 // 143 tours contre 133, 1,27 N9 par partie contre 1,14. 15 tours : un horizon de 25 tours faisait moins bien.
-let MC_R=32,MC_D=15,MC_K=8;
+// Fin de partie (un N9 sur le plateau) : 25 tours simulés, et atteindre N10 vaut 20 000 points.
+// Testé en rejouant 16 positions réelles (1er N9 apparu, ou deux N9 côte à côte), 60 suites chacune, mêmes pièces :
+// N10 atteint 80 fois sur 960 contre 48 avec le calcul habituel ; depuis deux N9 côte à côte : 18 % contre 10 %.
+// (Sans la récompense N10, ce mode était trop prudent : 13 N10 sur 320 contre 21.)
+let MC_R=32,MC_D=25,MC_K=8;
 function mcRolloutScore(b,max,nxtRots,nxtAnc,D,seq){
   let pts=0,bb=b,m=max;
   const step=(rots,anc)=>{const br=bestReply(bb,rots,m,1,anc);if(!br)return false;pts+=mergePts(br.merges);bb=br.b;m=br.max;return true;};
+  const win=()=>m>=10;
   if(nxtRots&&!step(nxtRots,nxtAnc))return pts-3000+evaluate(bb,deadFor(m));
-  for(let k=0;k<D;k++){const s=seq[k];const dz=deadFor(m);
+  for(let k=0;k<D;k++){if(win())return pts+20000;const s=seq[k];const dz=deadFor(m);
     if(s.rots[0].shape.some(p=>dz.has(p[2])))continue;
     if(!step(s.rots,s.anc))return pts-3000*(D-k)/D-500+evaluate(bb,deadFor(m));}
-  return pts+evaluate(bb,deadFor(m));
+  return pts+evaluate(bb,deadFor(m))+(m>=10?20000:0);
 }
 function solveMC(board,cur,nxt,maxReached,dist,anc){
   anc=anc||{};LIST_N=MC_K;let o;try{o=solve(board,cur,nxt,maxReached,dist,anc);}finally{LIST_N=3;}

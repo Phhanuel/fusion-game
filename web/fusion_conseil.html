@@ -350,15 +350,20 @@ function solve(board,cur,nxt,maxReached,dist,anc){
 // (pièce suivante connue, puis pièces tirées selon les parties enregistrées, chaque pièce posée au mieux à 1 coup).
 // Mêmes tirages pour tous les coups comparés. Simulation sur 160 parties : N9 atteint 136 fois contre 121,
 // 143 tours contre 133, 1,27 N9 par partie contre 1,14. 15 tours : un horizon de 25 tours faisait moins bien.
-let MC_R=32,MC_D=15,MC_K=8;
+// Fin de partie (un N9 sur le plateau) : 25 tours simulés, et atteindre N10 vaut 20 000 points.
+// Testé en rejouant 16 positions réelles (1er N9 apparu, ou deux N9 côte à côte), 60 suites chacune, mêmes pièces :
+// N10 atteint 80 fois sur 960 contre 48 avec le calcul habituel ; depuis deux N9 côte à côte : 18 % contre 10 %.
+// (Sans la récompense N10, ce mode était trop prudent : 13 N10 sur 320 contre 21.)
+let MC_R=32,MC_D=25,MC_K=8;
 function mcRolloutScore(b,max,nxtRots,nxtAnc,D,seq){
   let pts=0,bb=b,m=max;
   const step=(rots,anc)=>{const br=bestReply(bb,rots,m,1,anc);if(!br)return false;pts+=mergePts(br.merges);bb=br.b;m=br.max;return true;};
+  const win=()=>m>=10;
   if(nxtRots&&!step(nxtRots,nxtAnc))return pts-3000+evaluate(bb,deadFor(m));
-  for(let k=0;k<D;k++){const s=seq[k];const dz=deadFor(m);
+  for(let k=0;k<D;k++){if(win())return pts+20000;const s=seq[k];const dz=deadFor(m);
     if(s.rots[0].shape.some(p=>dz.has(p[2])))continue;
     if(!step(s.rots,s.anc))return pts-3000*(D-k)/D-500+evaluate(bb,deadFor(m));}
-  return pts+evaluate(bb,deadFor(m));
+  return pts+evaluate(bb,deadFor(m))+(m>=10?20000:0);
 }
 function solveMC(board,cur,nxt,maxReached,dist,anc){
   anc=anc||{};LIST_N=MC_K;let o;try{o=solve(board,cur,nxt,maxReached,dist,anc);}finally{LIST_N=3;}
@@ -744,15 +749,20 @@ function solve(board,cur,nxt,maxReached,dist,anc){
 // (pièce suivante connue, puis pièces tirées selon les parties enregistrées, chaque pièce posée au mieux à 1 coup).
 // Mêmes tirages pour tous les coups comparés. Simulation sur 160 parties : N9 atteint 136 fois contre 121,
 // 143 tours contre 133, 1,27 N9 par partie contre 1,14. 15 tours : un horizon de 25 tours faisait moins bien.
-let MC_R=32,MC_D=15,MC_K=8;
+// Fin de partie (un N9 sur le plateau) : 25 tours simulés, et atteindre N10 vaut 20 000 points.
+// Testé en rejouant 16 positions réelles (1er N9 apparu, ou deux N9 côte à côte), 60 suites chacune, mêmes pièces :
+// N10 atteint 80 fois sur 960 contre 48 avec le calcul habituel ; depuis deux N9 côte à côte : 18 % contre 10 %.
+// (Sans la récompense N10, ce mode était trop prudent : 13 N10 sur 320 contre 21.)
+let MC_R=32,MC_D=25,MC_K=8;
 function mcRolloutScore(b,max,nxtRots,nxtAnc,D,seq){
   let pts=0,bb=b,m=max;
   const step=(rots,anc)=>{const br=bestReply(bb,rots,m,1,anc);if(!br)return false;pts+=mergePts(br.merges);bb=br.b;m=br.max;return true;};
+  const win=()=>m>=10;
   if(nxtRots&&!step(nxtRots,nxtAnc))return pts-3000+evaluate(bb,deadFor(m));
-  for(let k=0;k<D;k++){const s=seq[k];const dz=deadFor(m);
+  for(let k=0;k<D;k++){if(win())return pts+20000;const s=seq[k];const dz=deadFor(m);
     if(s.rots[0].shape.some(p=>dz.has(p[2])))continue;
     if(!step(s.rots,s.anc))return pts-3000*(D-k)/D-500+evaluate(bb,deadFor(m));}
-  return pts+evaluate(bb,deadFor(m));
+  return pts+evaluate(bb,deadFor(m))+(m>=10?20000:0);
 }
 function solveMC(board,cur,nxt,maxReached,dist,anc){
   anc=anc||{};LIST_N=MC_K;let o;try{o=solve(board,cur,nxt,maxReached,dist,anc);}finally{LIST_N=3;}
@@ -1165,7 +1175,8 @@ function trackPieces(r){
 const pdesc=(p,u)=>(p.length?p.map(x=>'N'+x[2]).join('-'):'')+(u?(p.length?'-':'')+'?'.repeat(u):'')||'rien';
 // calcul du conseil dans un Web Worker (repli sur le calcul direct si le navigateur le refuse)
 // coups départagés par simulation de fins de partie (voir solveMC)
-const USE_MC=false;   // activé une fois la vérification sur les N10 terminée
+// simulation de fins de partie seulement en fin de partie : dès qu'un N9 est sur le plateau
+const useMC=board=>board.some(l=>l===9);
 let worker=null,reqId=0,pending=null;
 try{
   const src=document.getElementById('coreSrc').textContent+`
@@ -1200,11 +1211,11 @@ function show(r,ms){
     // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
     pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
     $('advStatus').textContent+=' · calcul…';
-    worker.postMessage({id:reqId,mc:USE_MC,hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    worker.postMessage({id:reqId,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
-  const o0=(USE_MC?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
+  const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
   finish(r,ms,warn,trash,o0,t0);
 }
