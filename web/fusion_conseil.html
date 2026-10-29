@@ -105,7 +105,7 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <button id="bCalib" disabled>2 · Calibrer</button>
         <button id="bPip" disabled>Fenêtre flottante</button>
         <button id="bPause" disabled>Pause</button>
-        <button id="bHammer" title="Le marteau détruit une relique, une fois par partie. Clique quand tu l'as utilisé.">Marteau : disponible</button>
+        <button id="bHammer" title="Nombre de marteaux (0 à 2). Suivi automatique ; touche pour corriger si besoin.">Marteaux : 1</button>
         <button id="bGoal" title="Survie : tenir le plus longtemps. Viser N10 : regroupe davantage les hauts niveaux, plus risqué.">Objectif : survie</button>
       </div>
       <p class="status" id="status">Commence par choisir la fenêtre du jeu (onglet « Fenêtre »).</p>
@@ -138,7 +138,7 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <li><b>Choisir la fenêtre du jeu</b>, onglet « Fenêtre ». Si le jeu n'apparaît pas, prends « Écran entier ».</li>
         <li><b>Calibrer</b> : 6 clics (plateau, zone de la pièce actuelle, cadre de la pièce suivante), puis vérifie l'aperçu et Valide.</li>
         <li><b>Fenêtre flottante</b> : le conseil passe dans une petite fenêtre toujours au premier plan.</li>
-        <li><b>Marteau</b> : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau doit servir un coup avant. Quand aucun coup ne laisse de place à la pièce suivante, le conseil indique la relique à détruire (✕). Clique sur « Marteau : disponible » une fois utilisé ; il se réactive à la partie suivante.</li>
+        <li><b>Marteau</b> : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau doit servir un coup avant. Quand aucun coup ne laisse de place à la pièce suivante, le conseil indique la relique à détruire (✕). Le compteur « Marteaux » se met à jour tout seul : 1 en début de partie, −1 quand tu l'utilises, +1 à chaque fusion de 5 reliques ou plus (2 au maximum). Touche-le pour le corriger si besoin.</li>
         <li><b>Point blanc</b> : le jeu marque d'un point la tuile de la pièce où la fusion aura lieu. L'outil le lit et le reproduit sur la pièce conseillée : la rotation tient compte de l'endroit où tombera la fusion.</li>
         <li><b>Case ★</b> : si le point n'a pas pu être lu, l'étoile indique la meilleure case pour une fusion incertaine.</li>
         <li>Le plus haut niveau obtenu est suivi automatiquement : dès le premier N5, les N1 deviennent de la poubelle, puis N6 → N2 et N7 → N3. Le N4 continue de sortir ensuite.</li>
@@ -1026,7 +1026,9 @@ function recordTurn(r){
   // le conseil a-t-il été suivi ? (si la fusion était incertaine, toute issue possible compte, et on note laquelle est arrivée :
   // c'est ce qui permettra de découvrir la règle du jeu)
   if(prev&&prev.adv){const nb=bstr(r.board),alts=prev.adv.alts||[];
-    prev.f=nb===prev.adv.after||alts.includes(nb)?1:0;if(alts.length&&alts.includes(nb))prev.land=alts.indexOf(nb);}
+    prev.f=nb===prev.adv.after||alts.includes(nb)?1:0;if(alts.length&&alts.includes(nb))prev.land=alts.indexOf(nb);
+    // fusion de 5 reliques ou plus jouée : le jeu donne un marteau
+    if(prev.f&&prev.adv.five&&hammers<2){setHammers(hammers+1);prev.gain=1;setStatus('Fusion de 5 : +1 marteau (il y en a '+hammers+').');}}
   curGame.turns.push({b:bstr(r.board),c:pieceKey(r.cur),r:r.cur.map(p=>p.join(',')).join(';'),a:r.curAnchor,na:r.nxtAnchor,nr:r.nxt.length?r.nxt.map(p=>p.join(',')).join(';'):null,n:r.nxt.length&&!r.nxtUnknown?pieceKey(r.nxt):null,m:maxReached});
   curGame.max=Math.max(curGame.max,maxReached);
   saveGames();renderGames();
@@ -1157,7 +1159,7 @@ function trackPieces(r){
     // dans la pièce) : la règle « là depuis 2 tours » ratait un marteau donné juste après la pose (partie de 204 tours)
     const added=before?[...before].filter((c,j)=>c==='0'&&lastT.b[j]!=='0').length:99,prevSize=T.length>=2?T[T.length-2].c.split(';').length:0;
     if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0&&before&&(before[d[0]]===lastT.b[d[0]]||added<=prevSize)){
-      if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il ne sera plus proposé avant la prochaine partie.');}
+      if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il en reste '+hammers+'.');}
       lastT.hammer=d[0];delete lastT.adv;delete lastT.f;}}
   if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
   else if(!fresh&&lastT&&r.cur.length&&!r.curUnknown){
@@ -1226,7 +1228,7 @@ function finish(r,ms,warn,trash,out,t0){
   const lt=curGame&&curGame.turns[curGame.turns.length-1];
   // fin de partie : confirmée sur 2 lectures du même plateau (une pièce mal lue ne doit pas clore la partie)
   if(out.over&&curGame&&curGame.turns.length){if(overBoard===bstr(r.board))endGame('bloqué');else overBoard=bstr(r.board);}else overBoard=null;
-  if(best&&lt&&lt.b===bstr(r.board)&&!lt.adv){lt.adv={k:best.k,idx:best.idx,after:bstr(best.after)};if(best.uncertain)lt.adv.alts=best.outs.map(x=>bstr(x.b));saveGames();}
+  if(best&&lt&&lt.b===bstr(r.board)&&!lt.adv){lt.adv={k:best.k,idx:best.idx,after:bstr(best.after),five:(best.merges||[]).some(m=>m.size>=5)?1:0};if(best.uncertain)lt.adv.alts=best.outs.map(x=>bstr(x.b));saveGames();}
   $('advStatus').textContent+=` · anticipation ${out.depth||1} tour${(out.depth||1)>1?'s':''}`;
   // marteau conseillé : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau s'utilise un tour avant,
   // quand aucun coup ne laisse de place à la pièce suivante
@@ -1411,12 +1413,14 @@ $('bPip').onclick=async()=>{
 // objectif : survie (réglage par défaut) ou viser N10 (hauts niveaux regroupés plus fortement)
 function setGoal(g){HI_MULT=g==='n10'?4:2;MARGE=g==='n10'?2:1;$('bGoal').textContent=g==='n10'?'Objectif : viser N10':'Objectif : survie';$('bGoal').setAttribute('aria-pressed',g==='n10');store.set('goal2',g);solvedSig=null;lastSig=null;}
 setGoal(store.get('goal2','survie'));   // nouvelle clé : revient au mode survie, désormais le meilleur aussi pour N10
-// marteau : une fois par partie (à remettre à « disponible » à chaque nouvelle partie, automatique quand le plateau se vide)
-let hammerOK=store.get('hammer',true);
-function setHammer(v){hammerOK=v;$('bHammer').textContent=v?'Marteau : disponible':'Marteau : utilisé';$('bHammer').setAttribute('aria-pressed',!v);store.set('hammer',v);solvedSig=null;lastSig=null;
-  if(!v&&curGame&&curGame.turns.length)curGame.turns[curGame.turns.length-1].hammer=1;}
-setHammer(hammerOK);
-$('bHammer').onclick=()=>setHammer(!hammerOK);
+// marteaux (mise à jour du jeu) : 1 en début de partie, +1 à chaque fusion de 5 reliques ou plus, 2 au maximum
+let hammers=store.get('hammers',1),hammerOK=hammers>0;
+function setHammers(n){hammers=Math.max(0,Math.min(2,n));hammerOK=hammers>0;$('bHammer').textContent='Marteaux : '+hammers;
+  $('bHammer').setAttribute('aria-pressed',!hammerOK);store.set('hammers',hammers);solvedSig=null;lastSig=null;}
+// compatibilité : true = nouvelle partie (1 marteau), false = un marteau utilisé
+function setHammer(v){if(v){setHammers(1);return;}setHammers(hammers-1);if(curGame&&curGame.turns.length)curGame.turns[curGame.turns.length-1].hammer=1;}
+setHammers(hammers);
+$('bHammer').onclick=()=>setHammers((hammers+1)%3);
 $('bGoal').onclick=()=>setGoal(HI_MULT===4?'survie':'n10');
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
