@@ -388,7 +388,7 @@ function solveMC(board,cur,nxt,maxReached,dist,anc){
   o.list.sort((a,b)=>b.mc-a.mc);o.list=o.list.slice(0,3);o.mc=true;return o;
 }
 // Étoile : quelle relique monter ? En priorité celle qui donne un N10 tout de suite ; sinon (allowAny) le meilleur
-// coup qui suit. STAR_ON_N9 : l'étoile peut-elle monter un N9 en N10 ? (pas encore vérifié dans le jeu)
+// coup qui suit. STAR_ON_N9 : vérifié dans le jeu, l étoile ne peut pas être posée sur un N9.
 let STAR_ON_N9=false;
 function solveStar(board,cur,nxt,maxReached,dist,anc){
   let best=null;const was=STAR;STAR=false;
@@ -812,7 +812,7 @@ function solveMC(board,cur,nxt,maxReached,dist,anc){
   o.list.sort((a,b)=>b.mc-a.mc);o.list=o.list.slice(0,3);o.mc=true;return o;
 }
 // Étoile : quelle relique monter ? En priorité celle qui donne un N10 tout de suite ; sinon (allowAny) le meilleur
-// coup qui suit. STAR_ON_N9 : l'étoile peut-elle monter un N9 en N10 ? (pas encore vérifié dans le jeu)
+// coup qui suit. STAR_ON_N9 : vérifié dans le jeu, l étoile ne peut pas être posée sur un N9.
 let STAR_ON_N9=false;
 function solveStar(board,cur,nxt,maxReached,dist,anc){
   let best=null;const was=STAR;STAR=false;
