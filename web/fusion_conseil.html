@@ -1216,6 +1216,9 @@ function trackPieces(r){
     if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0&&before&&(before[d[0]]===lastT.b[d[0]]||added<=prevSize)){
       if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il en reste '+hammers+'.');}
       lastT.hammer=d[0];delete lastT.adv;delete lastT.f;}}
+  // marteau conseillé puis pièce posée dans la même lecture : le plateau devient exactement celui prévu
+  if(fresh&&lastT&&lastT.hamAfter&&lastT.hamAfter===bstr(r.board)&&lastT.hammer===undefined&&hammerOK){
+    setHammer(false);setStatus('Marteau utilisé : il en reste '+hammers+'.');lastT.hammer=-1;delete lastT.adv;delete lastT.f;}
   if(fresh&&prevBoard&&lastT&&starOK){const d=r.board.map((l,i)=>l!==prevBoard[i]?i:-1).filter(i=>i>=0);
     if((lastT.starAfter&&lastT.starAfter===bstr(r.board))||(d.length===1&&prevBoard[d[0]]>0&&r.board[d[0]]===prevBoard[d[0]]+1)){
       setStar(false);lastT.star=1;delete lastT.adv;delete lastT.f;setStatus('Étoile utilisée.');}}
@@ -1241,7 +1244,8 @@ let worker=null,reqId=0,pending=null;
 try{
   const src=document.getElementById('coreSrc').textContent+`
 onmessage=e=>{const d=e.data;let out;
-  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);}
+  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);
+    else if(d.hammers>=2&&out.list&&!out.list[0].dead){const h=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(h&&!h.move.dead&&h.v>out.list[0].score){h.bonus=true;out.hammer=h;}}}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
   postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
@@ -1271,13 +1275,14 @@ function show(r,ms){
     // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
     pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
     $('advStatus').textContent+=' · calcul…';
-    worker.postMessage({id:reqId,star:starOK,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    worker.postMessage({id:reqId,star:starOK,hammers,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
   STAR=starOK;const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(starOK&&o0.list&&(starWin(r.board)||o0.list[0].dead))o0.star=solveStar(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
+  else if(hammers>=2&&o0.list&&!o0.list[0].dead){const h=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);if(h&&!h.move.dead&&h.v>o0.list[0].score){h.bonus=true;o0.hammer=h;}}
   finish(r,ms,warn,trash,o0,t0);
 }
 function finish(r,ms,warn,trash,out,t0){
@@ -1300,8 +1305,17 @@ function finish(r,ms,warn,trash,out,t0){
     drawPiece(m?m.shape:null);drawBoard(st.board,m,undefined,st.cell);return;}
   // marteau conseillé : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau s'utilise un tour avant,
   // quand aucun coup ne laisse de place à la pièce suivante
+  // 2 marteaux en main : en utiliser un dès que c'est rentable (simulation sur 140 parties : N10 13 fois contre 4,
+  // N9 132 contre 114, 167 tours contre 147 ; la place libérée donne plus de fusions de 5, qui rendent des marteaux)
+  if(best&&!best.dead&&out.hammer&&out.hammer.bonus&&!out.hammer.move.dead){
+    const h=out.hammer,m=h.move,c=CELLS[h.cell];if(lt&&lt.b===bstr(r.board)&&m.after)lt.hamAfter=bstr(m.after);
+    $('rot').textContent='Marteau (2 en main)';$('info').className='';
+    $('info').textContent=[`Tu as 2 marteaux : utilise-en un sur le N${h.level} de la colonne ${c.c+1}, ligne ${c.row+1} (étiquette rouge).`,
+      `Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`,
+      'Garder 2 marteaux ne sert à rien : les fusions de 5 en rendent, mais pas au-delà de 2.'].concat(warn).join('\n');
+    drawPiece(m.shape);drawBoard(h.board,m,h.cell,undefined,h.level);return;}
   if(best&&best.dead&&out.hammer&&!out.hammer.move.dead){
-    const h=out.hammer,m=h.move,c=CELLS[h.cell];
+    const h=out.hammer,m=h.move,c=CELLS[h.cell];if(lt&&lt.b===bstr(r.board)&&m.after)lt.hamAfter=bstr(m.after);
     $('rot').textContent='Marteau !';$('info').className='err';
     $('info').textContent=[`Utilise le marteau sur le N${h.level} de la colonne ${c.c+1}, ligne ${c.row+1} (étiquette rouge).`,
       `Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`,
