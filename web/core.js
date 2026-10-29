@@ -14,12 +14,17 @@ function rotations(piece,anchor){
     if(!seen.has(sig)){seen.add(sig);out.push({k,shape:s});}}
   return out;
 }
+// table des cases par coordonnées (accès direct, sans chaîne de caractères : calcul ~2x plus rapide)
+const QR_OFF=8,QR_W=24,QR=new Int16Array(QR_W*QR_W).fill(-1);CELLS.forEach((o,i)=>QR[(o.q+QR_OFF)*QR_W+o.r+QR_OFF]=i);
+const cellAt=(q,r)=>{q+=QR_OFF;r+=QR_OFF;return q<0||r<0||q>=QR_W||r>=QR_W?-1:QR[q*QR_W+r];};
 function placements(b,rots){
   const out=[];
   for(const R of rots){const s=R.shape,o=s[0];
-    for(let i=0;i<N;i++){const t=[];let ok=true;
-      for(const p of s){const j=IDX[K(CELLS[i].q+p[0]-o[0],CELLS[i].r+p[1]-o[1])];if(j===undefined||b[j]){ok=false;break;}t.push(j);}
-      if(ok)out.push({k:R.k,shape:s,idx:t});}}
+    // positions possibles de chaque forme (indépendantes du plateau) : calculées une fois par rotation
+    if(!R._pos){R._pos=[];for(let i=0;i<N;i++){const t=[];let ok=true;
+      for(const p of s){const j=cellAt(CELLS[i].q+p[0]-o[0],CELLS[i].r+p[1]-o[1]);if(j<0){ok=false;break;}t.push(j);}
+      if(ok)R._pos.push(t);}}
+    for(const t of R._pos){let ok=true;for(const j of t)if(b[j]){ok=false;break;}if(ok)out.push({k:R.k,shape:s,idx:t});}}
   return out;
 }
 // Où apparaît l'objet fusionné quand 2 ou 3 tuiles de la pièce posée sont dans le même groupe ?
@@ -27,7 +32,8 @@ function placements(b,rots){
 // On suppose donc le cas le moins favorable (la case qui enchaîne le moins de fusions) :
 // le solveur ne parie plus sur une cascade incertaine. Rejeu de 5 parties, case tirée au hasard :
 // 392 tours tenus en moyenne contre 379, et des résultats bien plus réguliers.
-function groupOf(b,a){const l=b[a],g=[a],s=new Set([a]);for(let h=0;h<g.length;h++)for(const n of NB[g[h]])if(!s.has(n)&&b[n]===l){s.add(n);g.push(n);}return g;}
+const _seen=new Int32Array(N);let _gen=0;
+function groupOf(b,a){const l=b[a],g=[a];_gen++;_seen[a]=_gen;for(let h=0;h<g.length;h++)for(const n of NB[g[h]])if(_seen[n]!==_gen&&b[n]===l){_seen[n]=_gen;g.push(n);}return g;}
 function cascadeFrom(b,g,dst,l){const nb=b.slice();g.forEach(x=>nb[x]=0);nb[dst]=Math.min(MAXL,l+(g.length>=5?2:1));let n=0;
   while(nb[dst]<MAXL){const gg=groupOf(nb,dst);if(gg.length<3)break;const t=Math.min(MAXL,nb[dst]+(gg.length>=5?2:1));gg.forEach(x=>nb[x]=0);nb[dst]=t;n++;}return n;}
 // Mise à jour du jeu : un point blanc marque la tuile de la pièce où la fusion aura lieu (anchor = son indice).
@@ -86,28 +92,31 @@ function deadFor(maxReached){if(_dead[maxReached])return _dead[maxReached];
 // vaut un N10 assuré au tour suivant.
 let STAR=false;
 function starWin(b){
+  let any9=false;for(let i=0;i<N;i++)if(b[i]===9){any9=true;break;}if(!any9)return false;
   for(let i=0;i<N;i++){if(b[i]!==8)continue;const seen=new Set();
     for(const n of NB[i]){if(b[n]!==9||seen.has(n))continue;const st=[n];seen.add(n);
       while(st.length){const c=st.pop();for(const x of NB[c])if(b[x]===9&&!seen.has(x)){seen.add(x);st.push(x);}}}
     if(seen.size>=2)return true;}
   return false;
 }
+const POW2=[1,2,4,8,16,32,64,128,256,512,1024];
 function evaluate(b,dead){
   let s=survival(b);if(STAR&&starWin(b))s+=4000;
-  for(let i=0;i<N;i++){
+  const da=dead._a||(dead._a=Array.from({length:MAXL+2},(_,l)=>dead.has(l)));
+  for(let i=0;i<N;i++){const nb=NB[i],bi=b[i];
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
     // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
     // Rejeu de 6 parties (6 tirages) : 515 tours tenus sur 550 en moyenne contre 472 sans ce terme.
-    if(!b[i]){s+=24;let e=0;for(const n of NB[i])if(!b[n])e++;if(e>=2)s+=1.5;s+=MARGE*e*(e-1)/2;continue;}
-    if(b[i]>MAXL)continue;   // objet non reconnu : simple case perdue
+    if(!bi){s+=24;let e=0;for(let k=0;k<nb.length;k++)if(!b[nb[k]])e++;if(e>=2)s+=1.5;s+=MARGE*e*(e-1)/2;continue;}
+    if(bi>MAXL)continue;   // objet non reconnu : simple case perdue
     // poubelle : malus de 60 (stratégie « zéro poubelle » : finir les N1 avant le 1er N5, les N2 avant le 1er N6…)
     // 120 parties simulées : N9 atteint 92 fois contre 73, mieux sur les 6 séries ; 2,5 poubelles en fin de partie contre 3,1
-    if(dead.has(b[i])){s-=60;continue;}
-    let same=0,empty=0;for(const n of NB[i]){if(b[n]===b[i])same++;if(!b[n])empty++;}
+    if(da[bi]){s-=60;continue;}
+    let same=0,empty=0;for(let k=0;k<nb.length;k++){const v=b[nb[k]];if(v===bi)same++;if(!v)empty++;}
     // hauts niveaux (N6+) qui se touchent : bonus exponentiel, pour préparer les fusions vers N9/N10
     // (HI_MULT = 2 : +2,5 % de tours tenus au rejeu de 14 parties ; 4 = mode « viser N10 » : 2x plus de N9 en simulation)
-    const H=b[i]>5?HI_MULT*Math.pow(2,b[i]-5):1;
-    if(same){s+=(2+b[i])*same/2*H;if(empty)s+=2;}else if(!empty)s-=3+b[i];
+    const H=bi>5?HI_MULT*POW2[bi-5]:1;
+    if(same){s+=(2+bi)*same/2*H;if(empty)s+=2;}else if(!empty)s-=3+bi;
   }
   return s;
 }
