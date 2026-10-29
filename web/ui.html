@@ -275,7 +275,7 @@ function renderGames(){
     <p class="pieces">${d.list.length?`Pièces les plus fréquentes à ce stade (${d.total} pièces vues) : `+d.list.map(x=>`${keyDesc(x.key)} <b>${Math.round(100*x.share)} %</b>`).join(' · ')+'. Utilisées pour anticiper un 3ᵉ tour.'
       :`Pièces vues : ${d.total}/15. Au-delà, l'outil anticipe un 3ᵉ tour d'après les pièces les plus fréquentes.`}</p>`;
 }
-$('gNew').onclick=()=>{endGame('manuel');setStatus('Partie terminée et enregistrée.');};
+$('gNew').onclick=()=>{endGame('manuel');setMax(0);setStatus('Partie terminée et enregistrée.');};
 $('gExport').onclick=()=>{
   const data=JSON.stringify({version:1,exported:new Date().toISOString(),games,curGame});
   if(window.Android){try{Android.saveExport('fusion_parties_'+new Date().toISOString().slice(0,10)+'.json',data);setStatus('Export enregistré dans Téléchargements.');}catch(e){setStatus("L'export a échoué : "+e.message,true);}return;}
@@ -352,6 +352,10 @@ function process(img){
 function trackPieces(r){
   const empty=r.board.every(l=>l===0);
   if(empty&&prevBoard&&prevBoard.some(l=>l>0)){endGame('plateau vidé');setMax(0);}   // nouvelle partie
+  // nouvelle partie commencée sans plateau vide détecté (lecture ratée entre deux parties) : quelques petites reliques
+  // seulement alors que le niveau max mémorisé est élevé → on repart de zéro (sinon N1 et N2 passaient pour des poubelles)
+  else{const rel=r.board.filter(l=>l>0&&l<=MAXL);
+    if(maxReached>=5&&!r.board.some(l=>l>MAXL)&&rel.length<=4&&Math.max(0,...rel,...r.cur.map(p=>p[2]))<=3){endGame('nouvelle partie');setMax(0);}}
   const lastT=curGame&&curGame.turns[curGame.turns.length-1];
   const fresh=!lastT||lastT.b!==bstr(r.board);     // un tour = un nouveau plateau (évite les doublons)
   // marteau utilisé dans le jeu : une seule relique disparaît et rien d'autre ne change
