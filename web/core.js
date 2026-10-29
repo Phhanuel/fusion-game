@@ -226,7 +226,7 @@ const mtxt=m=>m.map(x=>`${x.size}×N${x.l} → N${x.to}`).join(', ');
 
 /* ================= VISION ================= */
 // img = {data (RGBA), width, height}
-const EMPTY_MAX=45;   // contour d'une case vide : très sombre
+const EMPTY_MAX=110;   // contour d une case vide : sombre (ancien style ≈ 20, nouveau style du jeu ≈ 65-80) ; reliques ≥ 170
 let MATCH_MAX=1.15;   // écart max (0 à 2) entre histogrammes pour reconnaître une tuile
 function median(a){a.sort((x,y)=>x-y);return a[a.length>>1];}
 function borderBright(img,cx,cy,size){
