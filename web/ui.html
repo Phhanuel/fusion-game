@@ -106,6 +106,7 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <button id="bPip" disabled>Fenêtre flottante</button>
         <button id="bPause" disabled>Pause</button>
         <button id="bHammer" title="Nombre de marteaux (0 à 2). Suivi automatique ; touche pour corriger si besoin.">Marteaux : 1</button>
+        <button id="bStar" title="Étoile : une par partie. Suivi automatique ; touche pour corriger si besoin.">Étoile : disponible</button>
         <button id="bGoal" title="Survie : tenir le plus longtemps. Viser N10 : regroupe davantage les hauts niveaux, plus risqué.">Objectif : survie</button>
       </div>
       <p class="status" id="status">Commence par choisir la fenêtre du jeu (onglet « Fenêtre »).</p>
@@ -219,7 +220,7 @@ function saveGames(){
   setStatus("Stockage du navigateur plein : exporte tes parties puis efface-les.",true);
 }
 function endGame(reason){
-  try{setHammer(true);}catch(e){}
+  try{setHammer(true);setStar(true);}catch(e){}
   if(!curGame||!curGame.turns.length){curGame=null;saveGames();return;}
   const t=curGame.turns,f=t.filter(x=>x.f!==undefined);
   curGame.end=Date.now();curGame.reason=reason;curGame.max=Math.max(curGame.max||0,maxReached);
@@ -371,6 +372,9 @@ function trackPieces(r){
     if(d.length===1&&r.board[d[0]]===0&&prevBoard[d[0]]>0&&before&&(before[d[0]]===lastT.b[d[0]]||added<=prevSize)){
       if(hammerOK){setHammer(false);setStatus('Marteau utilisé : il en reste '+hammers+'.');}
       lastT.hammer=d[0];delete lastT.adv;delete lastT.f;}}
+  if(fresh&&prevBoard&&lastT&&starOK){const d=r.board.map((l,i)=>l!==prevBoard[i]?i:-1).filter(i=>i>=0);
+    if((lastT.starAfter&&lastT.starAfter===bstr(r.board))||(d.length===1&&prevBoard[d[0]]>0&&r.board[d[0]]===prevBoard[d[0]]+1)){
+      setStar(false);lastT.star=1;delete lastT.adv;delete lastT.f;setStatus('Étoile utilisée.');}}
   if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
   else if(!fresh&&lastT&&r.cur.length&&!r.curUnknown){
     // même plateau mais pièces relues différemment (fin d'animation) : on corrige le tour enregistré
@@ -393,7 +397,7 @@ let worker=null,reqId=0,pending=null;
 try{
   const src=document.getElementById('coreSrc').textContent+`
 onmessage=e=>{const d=e.data;let out;
-  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);}
+  try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
   postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
@@ -423,11 +427,12 @@ function show(r,ms){
     // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
     pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
     $('advStatus').textContent+=' · calcul…';
-    worker.postMessage({id:reqId,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    worker.postMessage({id:reqId,star:starOK,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
-  const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
+  STAR=starOK;const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
+  if(starOK&&o0.list&&(starWin(r.board)||o0.list[0].dead))o0.star=solveStar(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
   finish(r,ms,warn,trash,o0,t0);
 }
@@ -440,6 +445,15 @@ function finish(r,ms,warn,trash,out,t0){
   if(out.over&&curGame&&curGame.turns.length){if(overBoard===bstr(r.board))endGame('bloqué');else overBoard=bstr(r.board);}else overBoard=null;
   if(best&&lt&&lt.b===bstr(r.board)&&!lt.adv){lt.adv={k:best.k,idx:best.idx,after:bstr(best.after),five:(best.merges||[]).some(m=>m.size>=5)?1:0};if(best.uncertain)lt.adv.alts=best.outs.map(x=>bstr(x.b));saveGames();}
   $('advStatus').textContent+=` · anticipation ${out.depth||1} tour${(out.depth||1)>1?'s':''}`;
+  // étoile conseillée : N10 tout de suite, ou dernier recours si rien d'autre ne sauve la partie
+  const st=out.star,hamSaves=out.hammer&&!out.hammer.move.dead;
+  if(st&&(st.n10||(best&&best.dead&&!hamSaves&&st.move&&!st.move.dead))){
+    const c=CELLS[st.cell],m=st.move;if(lt&&lt.b===bstr(r.board))lt.starAfter=bstr(st.board);
+    $('rot').textContent='Étoile !';$('info').className='';
+    $('info').textContent=[`Utilise l'étoile sur le N${st.level} de la colonne ${c.c+1}, ligne ${c.row+1} (★) : il passe N${st.level+1}`+(st.n10?' et la fusion donne un N10 !':'.'),
+      m?`Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`:'',
+      st.n10?'':'Sans l\'étoile, la pièce suivante ne rentrera nulle part.'].filter(Boolean).concat(warn).join('\n');
+    drawPiece(m?m.shape:null);drawBoard(st.board,m,undefined,st.cell);return;}
   // marteau conseillé : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau s'utilise un tour avant,
   // quand aucun coup ne laisse de place à la pièce suivante
   if(best&&best.dead&&out.hammer&&!out.hammer.move.dead){
@@ -631,6 +645,11 @@ function setHammers(n){hammers=Math.max(0,Math.min(2,n));hammerOK=hammers>0;$('b
 function setHammer(v){if(v){setHammers(1);return;}setHammers(hammers-1);if(curGame&&curGame.turns.length)curGame.turns[curGame.turns.length-1].hammer=1;}
 setHammers(hammers);
 $('bHammer').onclick=()=>setHammers((hammers+1)%3);
+// étoile : une par partie
+let starOK=store.get('star',true);
+function setStar(v){starOK=v;$('bStar').textContent=v?'Étoile : disponible':'Étoile : utilisée';$('bStar').setAttribute('aria-pressed',!v);store.set('star',v);solvedSig=null;lastSig=null;}
+setStar(starOK);
+$('bStar').onclick=()=>setStar(!starOK);
 $('bGoal').onclick=()=>setGoal(HI_MULT===4?'survie':'n10');
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");

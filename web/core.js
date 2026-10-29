@@ -81,8 +81,19 @@ const _dead={};
 const DEAD_CAP=3;
 function deadFor(maxReached){if(_dead[maxReached])return _dead[maxReached];
   const d=new Set();for(let l=1;l<=Math.min(maxReached-4,DEAD_CAP);l++)d.add(l);return _dead[maxReached]=d;}
+// Étoile (une par partie) : monte une relique d'un niveau, et la fusion se déclenche (observé : 2 N9 côte à côte
+// + un N8 passé en N9 par l'étoile = N10). Tant que l'étoile est disponible, un N8 qui touche deux N9 reliés
+// vaut un N10 assuré au tour suivant.
+let STAR=false;
+function starWin(b){
+  for(let i=0;i<N;i++){if(b[i]!==8)continue;const seen=new Set();
+    for(const n of NB[i]){if(b[n]!==9||seen.has(n))continue;const st=[n];seen.add(n);
+      while(st.length){const c=st.pop();for(const x of NB[c])if(b[x]===9&&!seen.has(x)){seen.add(x);st.push(x);}}}
+    if(seen.size>=2)return true;}
+  return false;
+}
 function evaluate(b,dead){
-  let s=survival(b);
+  let s=survival(b);if(STAR&&starWin(b))s+=4000;
   for(let i=0;i<N;i++){
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
     // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
@@ -202,6 +213,20 @@ function solveMC(board,cur,nxt,maxReached,dist,anc){
   const r2=nxt.length?rotations(nxt,anc.nxt):null;
   for(const c of o.list){let tot=0;const x=c.outs[0];for(const q of seqs)tot+=mcRolloutScore(x.b,x.max1,r2,anc.nxt,MC_D,q);c.mc=c.m1+tot/MC_R;}
   o.list.sort((a,b)=>b.mc-a.mc);o.list=o.list.slice(0,3);o.mc=true;return o;
+}
+// Étoile : quelle relique monter ? En priorité celle qui donne un N10 tout de suite ; sinon (allowAny) le meilleur
+// coup qui suit. STAR_ON_N9 : l'étoile peut-elle monter un N9 en N10 ? (pas encore vérifié dans le jeu)
+let STAR_ON_N9=false;
+function solveStar(board,cur,nxt,maxReached,dist,anc){
+  let best=null;const was=STAR;STAR=false;
+  try{for(let i=0;i<N;i++){const L=board[i];if(!L||L>MAXL||L>=10||(L===9&&!STAR_ON_N9))continue;
+    const b0=board.slice();b0[i]=0;const c=resolve(b0,{idx:[i],shape:[[0,0,L+1]],k:0},0);
+    const m=Math.max(maxReached,L+1,topLevel(c.merges)),n10=c.b.some(l=>l===10);
+    const o=solve(c.b,cur,nxt,m,null,anc),x=o.list&&o.list[0];
+    const v=(n10?1e7:0)+(x?(x.dead?-1e6+x.score:x.score):-2e6);
+    if(!best||v>best.v)best={v,cell:i,level:L,board:c.b,merges:c.merges,n10,move:x||null};}}
+  finally{STAR=was;}
+  return best;
 }
 // Marteau (une fois par partie) : quelle relique détruire ? On teste chaque relique puis le meilleur coup qui suit.
 function solveHammer(board,cur,nxt,maxReached,dist,anc){
