@@ -401,7 +401,7 @@ try{
   const src=document.getElementById('coreSrc').textContent+`
 onmessage=e=>{const d=e.data;let out;
   try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);
-    else if(d.hammers>=2&&out.list&&!out.list[0].dead){const h=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(h&&!h.move.dead&&h.v>out.list[0].score){h.bonus=true;out.hammer=h;}}}
+    else if(d.hammers>=2&&out.list&&!out.list[0].dead){const h=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(h&&!h.move.dead&&h.v>out.list[0].score+HAM_BONUS_MIN){h.bonus=true;out.hammer=h;}}}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
   postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
@@ -438,7 +438,7 @@ function show(r,ms){
   STAR=starOK;const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(starOK&&o0.list&&(starWin(r.board)||o0.list[0].dead))o0.star=solveStar(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
-  else if(hammers>=2&&o0.list&&!o0.list[0].dead){const h=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);if(h&&!h.move.dead&&h.v>o0.list[0].score){h.bonus=true;o0.hammer=h;}}
+  else if(hammers>=2&&o0.list&&!o0.list[0].dead){const h=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);if(h&&!h.move.dead&&h.v>o0.list[0].score+HAM_BONUS_MIN){h.bonus=true;o0.hammer=h;}}
   finish(r,ms,warn,trash,o0,t0);
 }
 function finish(r,ms,warn,trash,out,t0){

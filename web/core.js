@@ -132,6 +132,9 @@ function bestReply(b,rots,max,w,anchor){
 // élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
 // MARGE = 2 avec HI_MULT = 4 : mode « viser N10 » (simulation : parties plus longues, 2 N10 sur 80 parties)
 let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2,MARGE=1;
+// marteau « 2 en main » : seulement si le gain dépasse 40 points (simulation avec étoile, 120 parties :
+// 66 N10 contre 68 sans seuil, mais un marteau de moins gâché par partie sur des gains minuscules)
+const HAM_BONUS_MIN=40;
 let LIST_N=3;
 function solve(board,cur,nxt,maxReached,dist,anc){
   anc=anc||{};
