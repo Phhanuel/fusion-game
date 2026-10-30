@@ -107,7 +107,7 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <button id="bPause" disabled>Pause</button>
         <button id="bHammer" title="Nombre de marteaux (0 à 2). Suivi automatique ; touche pour corriger si besoin.">Marteaux : 1</button>
         <button id="bStar" title="Étoile : une par partie. Suivi automatique ; touche pour corriger si besoin.">Étoile : disponible</button>
-        <button id="bGoal" title="Normal : le réglage le plus testé. Fusions de 5 : prépare deux paires de même niveau autour d une case vide, comme le schéma du guide (même réussite en simulation, N10 un peu plus tard).">Mode : normal</button>
+        <button id="bGoal" title="Normal : le réglage le plus testé. Rapide : pousse plus fort vers les gros niveaux, N10 en environ 15 % de tours en moins en simulation. Fusions de 5 : prépare deux paires de même niveau autour d une case vide, comme le schéma du guide (même réussite en simulation, N10 un peu plus tard).">Mode : normal</button>
       </div>
       <p class="status" id="status">Commence par choisir la fenêtre du jeu (onglet « Fenêtre »).</p>
     </section>
@@ -649,7 +649,8 @@ $('bPip').onclick=async()=>{
 
 ['advice','rot','info','boardCv','pieceCv','advStatus','curCv','nxtCv'].forEach($);
 // mode : normal (réglage par défaut) ou fusions de 5 (schéma du guide : deux paires autour d une case vide)
-function setGoal(g){if(g!=='five')g='normal';HI_MULT=2;MARGE=1;SL5=g==='five'?1:0;$('bGoal').textContent=g==='five'?'Mode : fusions de 5':'Mode : normal';$('bGoal').setAttribute('aria-pressed',g==='five');store.set('goal3',g);solvedSig=null;lastSig=null;}
+function setGoal(g){if(g!=='five'&&g!=='fast')g='normal';HI_MULT=g==='fast'?4:2;MARGE=1;SL5=g==='five'?1:0;GOAL=g;$('bGoal').textContent={normal:'Mode : normal',fast:'Mode : rapide',five:'Mode : fusions de 5'}[g];$('bGoal').setAttribute('aria-pressed',g!=='normal');store.set('goal3',g);solvedSig=null;lastSig=null;}
+let GOAL='normal';
 setGoal(store.get('goal3','normal'));
 // marteaux (mise à jour du jeu) : 1 en début de partie, +1 à chaque fusion de 5 reliques ou plus, 2 au maximum
 let hammers=store.get('hammers',1),hammerOK=hammers>0;
@@ -664,7 +665,7 @@ let starOK=store.get('star',true);
 function setStar(v){starOK=v;$('bStar').textContent=v?'Étoile : disponible':'Étoile : utilisée';$('bStar').setAttribute('aria-pressed',!v);store.set('star',v);solvedSig=null;lastSig=null;}
 setStar(starOK);
 $('bStar').onclick=()=>setStar(!starOK);
-$('bGoal').onclick=()=>setGoal(SL5?'normal':'five');
+$('bGoal').onclick=()=>setGoal({normal:'fast',fast:'five',five:'normal'}[GOAL]);
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
 /* --- appli Android : images fournies par l'appli (capture de l'écran du téléphone) --- */
