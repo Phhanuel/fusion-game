@@ -107,7 +107,11 @@ function evaluate(b,dead){
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
     // + marge de placement : chaque paire de voisins vides autour d'une case vide (= place pour une pièce coudée ou en ligne).
     // Rejeu de 6 parties (6 tirages) : 515 tours tenus sur 550 en moyenne contre 472 sans ce terme.
-    if(!bi){s+=24;let e=0;for(let k=0;k<nb.length;k++)if(!b[nb[k]])e++;if(e>=2)s+=1.5;s+=MARGE*e*(e-1)/2;continue;}
+    if(!bi){s+=24;let e=0;for(let k=0;k<nb.length;k++)if(!b[nb[k]])e++;if(e>=2)s+=1.5;s+=MARGE*e*(e-1)/2;
+      // mode « fusions de 5 » (guide) : case vide entourée de deux paires de même niveau (N4 à N8) → la relique posée ici fait une fusion de 5
+      if(SL5){const cnt=[0,0,0,0,0,0,0,0,0,0,0];for(let k=0;k<nb.length;k++){const l=b[nb[k]];if(l>=4&&l<=8&&!da[l])cnt[l]++;}
+        for(let l=4;l<=8;l++){if(cnt[l]>=4)s+=SL5*20*POW2[l-4];else if(cnt[l]===3)s+=SL5*7*POW2[l-4];}}
+      continue;}
     if(bi>MAXL)continue;   // objet non reconnu : simple case perdue
     // poubelle : malus de 60 (stratégie « zéro poubelle » : finir les N1 avant le 1er N5, les N2 avant le 1er N6…)
     // 120 parties simulées : N9 atteint 92 fois contre 73, mieux sur les 6 séries ; 2,5 poubelles en fin de partie contre 3,1
@@ -132,6 +136,9 @@ function bestReply(b,rots,max,w,anchor){
 // élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
 // MARGE = 2 avec HI_MULT = 4 : mode « viser N10 » (simulation : parties plus longues, 2 N10 sur 80 parties)
 let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2,MARGE=1;
+// SL5 = 1 : mode « fusions de 5 » (schéma du guide). Simulation, 200 parties avec étoile : 117 N10 contre 113 (égal),
+// N10 un peu plus tard (tour médian 153 contre 146). Proposé comme mode au choix.
+let SL5=0;
 // marteau « 2 en main » : seulement si le gain dépasse 40 points (simulation avec étoile, 120 parties :
 // 66 N10 contre 68 sans seuil, mais un marteau de moins gâché par partie sur des gains minuscules)
 const HAM_BONUS_MIN=40;

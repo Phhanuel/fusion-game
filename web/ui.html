@@ -107,7 +107,7 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <button id="bPause" disabled>Pause</button>
         <button id="bHammer" title="Nombre de marteaux (0 à 2). Suivi automatique ; touche pour corriger si besoin.">Marteaux : 1</button>
         <button id="bStar" title="Étoile : une par partie. Suivi automatique ; touche pour corriger si besoin.">Étoile : disponible</button>
-        <button id="bGoal" title="Survie : tenir le plus longtemps. Viser N10 : regroupe davantage les hauts niveaux, plus risqué.">Objectif : survie</button>
+        <button id="bGoal" title="Normal : le réglage le plus testé. Fusions de 5 : prépare deux paires de même niveau autour d une case vide, comme le schéma du guide (même réussite en simulation, N10 un peu plus tard).">Mode : normal</button>
       </div>
       <p class="status" id="status">Commence par choisir la fenêtre du jeu (onglet « Fenêtre »).</p>
     </section>
@@ -403,7 +403,7 @@ onmessage=e=>{const d=e.data;let out;
   try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);
     else if(d.hammers>=2&&out.list&&!out.list[0].dead){const h=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(h&&!h.move.dead&&h.v>out.list[0].score+HAM_BONUS_MIN){h.bonus=true;out.hammer=h;}}}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
-  postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;');
+  postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;SL5=d.sl5||0;');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
   worker.onmessage=e=>{if(!pending||e.data.id!==pending.id)return;const p=pending;pending=null;finish(p.r,p.ms,p.warn,p.trash,e.data.out,p.t0);};
   worker.onerror=()=>{worker=null;if(pending){const p=pending;pending=null;solvedSig=null;}};
@@ -431,7 +431,7 @@ function show(r,ms){
     // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
     pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
     $('advStatus').textContent+=' · calcul…';
-    worker.postMessage({id:reqId,star:starOK,hammers,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    worker.postMessage({id:reqId,sl5:SL5,star:starOK,hammers,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
@@ -648,9 +648,9 @@ $('bPip').onclick=async()=>{
 };
 
 ['advice','rot','info','boardCv','pieceCv','advStatus','curCv','nxtCv'].forEach($);
-// objectif : survie (réglage par défaut) ou viser N10 (hauts niveaux regroupés plus fortement)
-function setGoal(g){HI_MULT=g==='n10'?4:2;MARGE=g==='n10'?2:1;$('bGoal').textContent=g==='n10'?'Objectif : viser N10':'Objectif : survie';$('bGoal').setAttribute('aria-pressed',g==='n10');store.set('goal2',g);solvedSig=null;lastSig=null;}
-setGoal(store.get('goal2','survie'));   // nouvelle clé : revient au mode survie, désormais le meilleur aussi pour N10
+// mode : normal (réglage par défaut) ou fusions de 5 (schéma du guide : deux paires autour d une case vide)
+function setGoal(g){if(g!=='five')g='normal';HI_MULT=2;MARGE=1;SL5=g==='five'?1:0;$('bGoal').textContent=g==='five'?'Mode : fusions de 5':'Mode : normal';$('bGoal').setAttribute('aria-pressed',g==='five');store.set('goal3',g);solvedSig=null;lastSig=null;}
+setGoal(store.get('goal3','normal'));
 // marteaux (mise à jour du jeu) : 1 en début de partie, +1 à chaque fusion de 5 reliques ou plus, 2 au maximum
 let hammers=store.get('hammers',1),hammerOK=hammers>0;
 function setHammers(n){hammers=Math.max(0,Math.min(2,n));hammerOK=hammers>0;$('bHammer').textContent='Marteaux : '+hammers;
@@ -664,7 +664,7 @@ let starOK=store.get('star',true);
 function setStar(v){starOK=v;$('bStar').textContent=v?'Étoile : disponible':'Étoile : utilisée';$('bStar').setAttribute('aria-pressed',!v);store.set('star',v);solvedSig=null;lastSig=null;}
 setStar(starOK);
 $('bStar').onclick=()=>setStar(!starOK);
-$('bGoal').onclick=()=>setGoal(HI_MULT===4?'survie':'n10');
+$('bGoal').onclick=()=>setGoal(SL5?'normal':'five');
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
 /* --- appli Android : images fournies par l'appli (capture de l'écran du téléphone) --- */
