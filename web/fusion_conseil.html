@@ -420,7 +420,9 @@ function solveHammer(board,cur,nxt,maxReached,dist,anc){
     const b=board.slice();b[i]=0;const o=solve(b,cur,nxt,maxReached,null,anc);const x=o.list&&o.list[0];if(!x)continue;
     // une relique détruite coûte ce qu'il a fallu de fusions pour la créer : sans ce coût, le conseil sacrifiait
     // un N9 isolé (aucun bonus de paire) plutôt qu'un N6 ou un N7, alors que les deux sauvaient la partie
-    const cost=board[i]>=5?15*Math.pow(2,board[i]-2):0;
+    // N4 aussi tant que les pièces ne contiennent pas de N4 (début de partie : un N4 a coûté 3 N3, il n'est pas « gratuit »)
+    const stg=Math.max(1,Math.min(maxReached-3,4)),L=board[i];
+    const cost=L>=5||L>stg+2?15*Math.pow(2,L-2):0;
     const v=x.dead?-1e6+x.score:x.score-cost;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
   return best;
 }
@@ -856,7 +858,9 @@ function solveHammer(board,cur,nxt,maxReached,dist,anc){
     const b=board.slice();b[i]=0;const o=solve(b,cur,nxt,maxReached,null,anc);const x=o.list&&o.list[0];if(!x)continue;
     // une relique détruite coûte ce qu'il a fallu de fusions pour la créer : sans ce coût, le conseil sacrifiait
     // un N9 isolé (aucun bonus de paire) plutôt qu'un N6 ou un N7, alors que les deux sauvaient la partie
-    const cost=board[i]>=5?15*Math.pow(2,board[i]-2):0;
+    // N4 aussi tant que les pièces ne contiennent pas de N4 (début de partie : un N4 a coûté 3 N3, il n'est pas « gratuit »)
+    const stg=Math.max(1,Math.min(maxReached-3,4)),L=board[i];
+    const cost=L>=5||L>stg+2?15*Math.pow(2,L-2):0;
     const v=x.dead?-1e6+x.score:x.score-cost;if(!best||v>best.v)best={v,cell:i,level:board[i],board:b,move:x};}
   return best;
 }
