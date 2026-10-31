@@ -1340,8 +1340,7 @@ function show(r,ms){
   // niveau max réellement présent (le N5 qui vient d'apparaître compte tout de suite pour les pièces probables)
   const effMax=Math.max(maxReached,...r.board.filter(l=>l<=MAXL&&(maxReached===0||l<=maxReached+2)));
   if(TARGET>=0){const t=r.board[TARGET];
-    if(TARGET_L&&t>=TARGET_L&&t<=MAXL){setTarget(-1);setStatus('Case cible atteinte : N'+t+' posé dessus.');}
-    else if(!t)TARGET_L=Math.max(5,effMax-1);}
+    if(TARGET_L&&t>=TARGET_L&&t<=MAXL){setTarget(-1);setStatus('Case cible atteinte : N'+t+' posé dessus.');}}
   const dist=pieceDist(effMax);
   const nxt=r.nxtUnknown?[]:r.nxt;
   if(worker){
@@ -1406,7 +1405,7 @@ function finish(r,ms,warn,trash,out,t0){
   $('info').className=warn.length?'err':'';
   if(best.newDead.length)lines.push('⚠ Ce coup crée le premier N'+(best.newDead[best.newDead.length-1]+4)+' : '+best.newDead.map(l=>'N'+l).join(', ')+' ne sortira plus');
   if(trash.length)lines.push('Poubelle (ne fusionnera plus) : '+trash.map(l=>'N'+l).join(', '));
-  if(TARGET>=0){const c=CELLS[TARGET];lines.push(`◎ Case cible : colonne ${c.c+1}, ligne ${c.row+1} (prochain N${TARGET_L} ou plus). Touche-la à nouveau pour l'enlever.`);}
+  if(TARGET>=0){const c=CELLS[TARGET];lines.push(`◎ Case cible : colonne ${c.c+1}, ligne ${c.row+1} (prochain N${TARGET_L} ou plus). Touche-la encore pour changer le niveau, puis pour l'enlever.`);}
   $('info').textContent=lines.concat(warn).join('\n');
   drawPiece(best.shape);drawBoard(r.board,best,undefined,best.uncertain&&best.gap>20?best.bestAt:undefined);
 }
@@ -1426,7 +1425,7 @@ function drawBoard(board,best,hamCell,starCell,hamLevel){
     const l=ghost[i]!==undefined?ghost[i]:board[i];tile(ctx,x,y,108,l,ghost[i]!==undefined);
     if(i===hamCell){ctx.fillStyle='#e8664a';ctx.beginPath();ctx.roundRect(x-6,y-8,74,36,10);ctx.fill();ctx.fillStyle='#fff';ctx.font='800 24px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✕ N'+hamLevel,x+31,y+11);}
     if(i===TARGET){ctx.save();ctx.strokeStyle='#4ee0ff';ctx.lineWidth=7;ctx.setLineDash([16,10]);ctx.beginPath();ctx.roundRect(x-5,y-5,118,118,26);ctx.stroke();ctx.restore();
-      if(!l){ctx.fillStyle='#4ee0ff';ctx.font='800 52px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('◎',x+54,y+56);}}
+      if(!l){ctx.fillStyle='#4ee0ff';ctx.font='800 52px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('◎',x+54,y+44);ctx.font='800 30px Segoe UI,system-ui,sans-serif';ctx.fillText('N'+TARGET_L,x+54,y+88);}}
     if(i===dotCell)dot(ctx,x+90,y+18,11);
     if(i===starCell){ctx.fillStyle='#f2b632';ctx.font='800 40px Segoe UI,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',x+92,y+18);}});
 }
@@ -1587,12 +1586,20 @@ setStar(starOK);
 $('bStar').onclick=()=>setStar(!starOK);
 // case cible : toucher une case du plateau de l'appli (toucher à nouveau pour l'enlever)
 // (TARGET et TARGET_L sont déclarés dans le cœur, partagés avec le calcul)
-function setTarget(i){TARGET=i;if(i>=0)TARGET_L=Math.max(5,maxReached-1);solvedSig=null;lastSig=null;if(i<0)drawBoard(prevBoard||new Array(N).fill(0),null);}
+// niveaux proposés à chaque touche : d'abord le record − 1, puis en montant jusqu'à N9, puis les plus petits, puis plus de cible
+let targetSeq=[],targetK=0;
+function setTarget(i,l){TARGET=i;if(i>=0)TARGET_L=l;solvedSig=null;lastSig=null;
+  const sh=prevBoard||new Array(N).fill(0);drawBoard(sh,null);}
 $('boardCv').style.cursor='pointer';
 $('boardCv').onclick=e=>{const cv=$('boardCv'),r=cv.getBoundingClientRect(),x=(e.clientX-r.left)*640/r.width,y=(e.clientY-r.top)*640/r.height;
   const i=CELLS.findIndex(o=>{const X=14+o.c*124,Y=10+(o.row+(o.c%2)*.5)*124;return x>=X&&x<=X+108&&y>=Y&&y<=Y+108;});
-  if(i<0)return;if(i===TARGET){setTarget(-1);setStatus('Case cible enlevée.');}
-  else{setTarget(i);setStatus(`Case cible : colonne ${CELLS[i].c+1}, ligne ${CELLS[i].row+1}. Les conseils y amènent le prochain N${TARGET_L} ou plus.`);}};
+  if(i<0)return;
+  if(i===TARGET){targetK++;
+    if(targetK>=targetSeq.length){setTarget(-1);setStatus('Case cible enlevée.');return;}
+    setTarget(i,targetSeq[targetK]);setStatus(`Case cible : niveau visé N${TARGET_L}. Touche encore pour changer le niveau${targetK===targetSeq.length-1?' (la prochaine touche enlève la cible)':''}.`);return;}
+  if(prevBoard&&prevBoard[i]){setStatus('Choisis une case vide : la fusion tombe sur la pièce posée.',true);return;}
+  const d=Math.max(5,Math.min(9,maxReached-1));targetSeq=[];for(let l=d;l<=9;l++)targetSeq.push(l);for(let l=5;l<d;l++)targetSeq.push(l);targetK=0;
+  setTarget(i,d);setStatus(`Case cible : colonne ${CELLS[i].c+1}, ligne ${CELLS[i].row+1}, niveau visé N${d}. Touche-la encore pour changer le niveau.`);};
 $('bGoal').onclick=()=>setGoal({normal:'fast',fast:'five',five:'normal'}[GOAL]);
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
