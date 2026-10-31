@@ -264,12 +264,20 @@ function deadFor(maxReached){if(_dead[maxReached])return _dead[maxReached];
 // + un N8 passé en N9 par l'étoile = N10). Tant que l'étoile est disponible, un N8 qui touche deux N9 reliés
 // vaut un N10 assuré au tour suivant.
 let STAR=false;
+// étoile gagnante : un +1 sur une relique donne tout de suite un N10
+//  - N8 qui touche 2 N9 (3×N9 → N10 : c'est ainsi que le 1er N10 a été obtenu)
+//  - N7 entouré de 4 N8 (deux paires, comme le schéma du guide) : le N7 passe N8 et 5×N8 → N10
+//  - N7 qui touche 2 ou 3 N8 dont la fusion en N9 tombe à côté de 2 N9 (vérifié par la vraie fusion)
+// (3 reliques reliées fusionnent toujours : 4 N8 ne peuvent être que deux paires séparées par la case du N7)
+const _sw=new Int32Array(N);let _swg=0;
 function starWin(b){
-  let any9=false;for(let i=0;i<N;i++)if(b[i]===9){any9=true;break;}if(!any9)return false;
-  for(let i=0;i<N;i++){if(b[i]!==8)continue;const seen=new Set();
-    for(const n of NB[i]){if(b[n]!==9||seen.has(n))continue;const st=[n];seen.add(n);
-      while(st.length){const c=st.pop();for(const x of NB[c])if(b[x]===9&&!seen.has(x)){seen.add(x);st.push(x);}}}
-    if(seen.size>=2)return true;}
+  let any=false;for(let i=0;i<N;i++)if(b[i]===8||b[i]===9){any=true;break;}if(!any)return false;
+  for(let i=0;i<N;i++){const L=b[i];if(L!==7&&L!==8)continue;const T=L+1;_swg++;_sw[i]=_swg;let sum=0;
+    for(const n of NB[i]){if(b[n]!==T||_sw[n]===_swg)continue;const st=[n];_sw[n]=_swg;sum++;
+      while(st.length){const c=st.pop();for(const x of NB[c])if(b[x]===T&&_sw[x]!==_swg){_sw[x]=_swg;st.push(x);sum++;}}}
+    if(sum<2)continue;
+    if(T===9||sum>=4)return true;
+    const b0=b.slice();b0[i]=0;if(resolve(b0,{idx:[i],shape:[[0,0,T]],k:0},0).b.some(l=>l===10))return true;}
   return false;
 }
 const POW2=[1,2,4,8,16,32,64,128,256,512,1024];
@@ -709,12 +717,20 @@ function deadFor(maxReached){if(_dead[maxReached])return _dead[maxReached];
 // + un N8 passé en N9 par l'étoile = N10). Tant que l'étoile est disponible, un N8 qui touche deux N9 reliés
 // vaut un N10 assuré au tour suivant.
 let STAR=false;
+// étoile gagnante : un +1 sur une relique donne tout de suite un N10
+//  - N8 qui touche 2 N9 (3×N9 → N10 : c'est ainsi que le 1er N10 a été obtenu)
+//  - N7 entouré de 4 N8 (deux paires, comme le schéma du guide) : le N7 passe N8 et 5×N8 → N10
+//  - N7 qui touche 2 ou 3 N8 dont la fusion en N9 tombe à côté de 2 N9 (vérifié par la vraie fusion)
+// (3 reliques reliées fusionnent toujours : 4 N8 ne peuvent être que deux paires séparées par la case du N7)
+const _sw=new Int32Array(N);let _swg=0;
 function starWin(b){
-  let any9=false;for(let i=0;i<N;i++)if(b[i]===9){any9=true;break;}if(!any9)return false;
-  for(let i=0;i<N;i++){if(b[i]!==8)continue;const seen=new Set();
-    for(const n of NB[i]){if(b[n]!==9||seen.has(n))continue;const st=[n];seen.add(n);
-      while(st.length){const c=st.pop();for(const x of NB[c])if(b[x]===9&&!seen.has(x)){seen.add(x);st.push(x);}}}
-    if(seen.size>=2)return true;}
+  let any=false;for(let i=0;i<N;i++)if(b[i]===8||b[i]===9){any=true;break;}if(!any)return false;
+  for(let i=0;i<N;i++){const L=b[i];if(L!==7&&L!==8)continue;const T=L+1;_swg++;_sw[i]=_swg;let sum=0;
+    for(const n of NB[i]){if(b[n]!==T||_sw[n]===_swg)continue;const st=[n];_sw[n]=_swg;sum++;
+      while(st.length){const c=st.pop();for(const x of NB[c])if(b[x]===T&&_sw[x]!==_swg){_sw[x]=_swg;st.push(x);sum++;}}}
+    if(sum<2)continue;
+    if(T===9||sum>=4)return true;
+    const b0=b.slice();b0[i]=0;if(resolve(b0,{idx:[i],shape:[[0,0,T]],k:0},0).b.some(l=>l===10))return true;}
   return false;
 }
 const POW2=[1,2,4,8,16,32,64,128,256,512,1024];
