@@ -426,7 +426,8 @@ function show(r,ms){
   // niveau max réellement présent (le N5 qui vient d'apparaître compte tout de suite pour les pièces probables)
   const effMax=Math.max(maxReached,...r.board.filter(l=>l<=MAXL&&(maxReached===0||l<=maxReached+2)));
   if(TARGET>=0){const t=r.board[TARGET];
-    if(TARGET_L&&t>=TARGET_L&&t<=MAXL){setTarget(-1);setStatus('Case cible atteinte : N'+t+' posé dessus.');}}
+    if(t===TARGET_L){setTarget(-1);setStatus('Case cible atteinte : N'+t+' posé dessus.');}
+    else if(t&&t<=MAXL){setTarget(-1);setStatus('Case cible occupée par un N'+t+' : cible enlevée.',true);}}
   const dist=pieceDist(effMax);
   const nxt=r.nxtUnknown?[]:r.nxt;
   if(worker){
@@ -491,7 +492,8 @@ function finish(r,ms,warn,trash,out,t0){
   $('info').className=warn.length?'err':'';
   if(best.newDead.length)lines.push('⚠ Ce coup crée le premier N'+(best.newDead[best.newDead.length-1]+4)+' : '+best.newDead.map(l=>'N'+l).join(', ')+' ne sortira plus');
   if(trash.length)lines.push('Poubelle (ne fusionnera plus) : '+trash.map(l=>'N'+l).join(', '));
-  if(TARGET>=0){const c=CELLS[TARGET];lines.push(`◎ Case cible : colonne ${c.c+1}, ligne ${c.row+1} (prochain N${TARGET_L} ou plus). Touche-la encore pour changer le niveau, puis pour l'enlever.`);}
+  if(TARGET>=0){const c=CELLS[TARGET];lines.push(`◎ Case cible : colonne ${c.c+1}, ligne ${c.row+1} (N${TARGET_L} exactement). Touche-la encore pour changer le niveau, puis pour l'enlever.`)
+    if(!r.board[TARGET]){const tb=r.board.slice();tb[TARGET]=TARGET_L;if(groupOf(tb,TARGET).length>=3)lines.push(`⚠ Un N${TARGET_L} posé sur la case cible fusionnerait tout de suite avec les N${TARGET_L} voisins : change le niveau ou la case.`);}}
   $('info').textContent=lines.concat(warn).join('\n');
   drawPiece(best.shape);drawBoard(r.board,best,undefined,best.uncertain&&best.gap>20?best.bestAt:undefined);
 }

@@ -110,13 +110,11 @@ function starWin(b){
 const POW2=[1,2,4,8,16,32,64,128,256,512,1024];
 function evaluate(b,dead){
   let s=survival(b);if(STAR&&starWin(b))s+=4000;
-  // case cible choisie par le joueur : la prochaine grosse relique (niveau TARGET_L ou plus) doit tomber là ;
-  // d'ici là la case reste libre (petite relique posée dessus = malus)
-  // une relique d'un niveau nouveau créée ailleurs (ex. N9 au lieu du N8 sur la cible) vaut au moins autant : la cible ne fait jamais rater mieux
-  if(TARGET>=0){const t=b[TARGET];let v=t>=TARGET_L&&t<=MAXL?1000*POW2[Math.min(3,t-TARGET_L)]:t&&t<=MAXL?-150:0,up=0,n10=false;
-    // seulement un niveau jamais vu sur le plateau (ex. N9 quand le plus haut est N8) : un N8 de plus ailleurs ne remplace pas la cible
-    const lim=Math.max(TARGET_L,TARGET_TOP);for(let i=0;i<N;i++){const l=b[i];if(l>lim&&l<=MAXL){up++;if(l>=10)n10=true;}}
-    if(up||n10)v=Math.max(v,2000);s+=v;}
+  // case cible choisie par le joueur : consigne stricte, exactement le niveau TARGET_L sur cette case
+  // (aucun « mieux ailleurs » : seul un N10, le but du jeu, passe avant) ; d'ici là la case reste libre
+  if(TARGET>=0){const t=b[TARGET];let v=t===TARGET_L?1500:t&&t<=MAXL?-3000:0;
+    if(v<1500)for(let i=0;i<N;i++)if(b[i]===10){v=1500;break;}
+    s+=v;}
   const da=dead._a||(dead._a=Array.from({length:MAXL+2},(_,l)=>dead.has(l)));
   for(let i=0;i<N;i++){const nb=NB[i],bi=b[i];
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
