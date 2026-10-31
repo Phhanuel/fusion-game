@@ -112,10 +112,11 @@ function evaluate(b,dead){
   let s=survival(b);if(STAR&&starWin(b))s+=4000;
   // case cible choisie par le joueur : la prochaine grosse relique (niveau TARGET_L ou plus) doit tomber là ;
   // d'ici là la case reste libre (petite relique posée dessus = malus)
-  // une relique plus haute que le niveau visé créée ailleurs (ex. N9 au lieu du N8 sur la cible) vaut au moins autant : la cible ne fait jamais rater mieux
+  // une relique d'un niveau nouveau créée ailleurs (ex. N9 au lieu du N8 sur la cible) vaut au moins autant : la cible ne fait jamais rater mieux
   if(TARGET>=0){const t=b[TARGET];let v=t>=TARGET_L&&t<=MAXL?1000*POW2[Math.min(3,t-TARGET_L)]:t&&t<=MAXL?-150:0,up=0,n10=false;
-    for(let i=0;i<N;i++){const l=b[i];if(l>TARGET_L&&l<=MAXL){up++;if(l>=10)n10=true;}}
-    if(up>TARGET_UP||n10)v=Math.max(v,2000);s+=v;}
+    // seulement un niveau jamais vu sur le plateau (ex. N9 quand le plus haut est N8) : un N8 de plus ailleurs ne remplace pas la cible
+    const lim=Math.max(TARGET_L,TARGET_TOP);for(let i=0;i<N;i++){const l=b[i];if(l>lim&&l<=MAXL){up++;if(l>=10)n10=true;}}
+    if(up||n10)v=Math.max(v,2000);s+=v;}
   const da=dead._a||(dead._a=Array.from({length:MAXL+2},(_,l)=>dead.has(l)));
   for(let i=0;i<N;i++){const nb=NB[i],bi=b[i];
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
@@ -149,7 +150,7 @@ function bestReply(b,rots,max,w,anchor){
 }
 // élagage testé (8 poses / 8 coups) : 3x plus rapide mais 550 tours tenus contre 580 au rejeu, donc calcul complet conservé
 // MARGE = 2 avec HI_MULT = 4 : mode « viser N10 » (simulation : parties plus longues, 2 N10 sur 80 parties)
-let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2,MARGE=1,TARGET=-1,TARGET_L=7,TARGET_UP=0;
+let THIRD_TOP=999,CAND_TOP=10,HI_MULT=2,MARGE=1,TARGET=-1,TARGET_L=7,TARGET_TOP=0;
 // SL5 = 1 : mode « fusions de 5 » (schéma du guide). Simulation, 200 parties avec étoile : 117 N10 contre 113 (égal),
 // N10 un peu plus tard (tour médian 153 contre 146). Proposé comme mode au choix.
 let SL5=0;

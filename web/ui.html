@@ -403,7 +403,7 @@ onmessage=e=>{const d=e.data;let out;
   try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);
     else if(d.hammers>=2&&out.list&&!out.list[0].dead){const h=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(h&&!h.move.dead&&h.v>out.list[0].score+HAM_BONUS_MIN){h.bonus=true;out.hammer=h;}}}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
-  postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;SL5=d.sl5||0;TARGET=d.target??-1;TARGET_L=d.targetL||7;TARGET_UP=d.board.filter(l=>l>TARGET_L&&l<=MAXL).length;');
+  postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;SL5=d.sl5||0;TARGET=d.target??-1;TARGET_L=d.targetL||7;TARGET_TOP=Math.max(0,...d.board.filter(l=>l<=MAXL));');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
   worker.onmessage=e=>{if(!pending||e.data.id!==pending.id)return;const p=pending;pending=null;finish(p.r,p.ms,p.warn,p.trash,e.data.out,p.t0);};
   worker.onerror=()=>{worker=null;if(pending){const p=pending;pending=null;solvedSig=null;}};
@@ -437,7 +437,7 @@ function show(r,ms){
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
-  TARGET_UP=r.board.filter(l=>l>TARGET_L&&l<=MAXL).length;STAR=starOK;const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
+  TARGET_TOP=Math.max(0,...r.board.filter(l=>l<=MAXL));STAR=starOK;const o0=(useMC(r.board)?solveMC:solve)(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(starOK&&o0.list&&(starWin(r.board)||o0.list[0].dead))o0.star=solveStar(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
   else if(hammers>=2&&o0.list&&!o0.list[0].dead){const h=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);if(h&&!h.move.dead&&h.v>o0.list[0].score+HAM_BONUS_MIN){h.bonus=true;o0.hammer=h;}}
