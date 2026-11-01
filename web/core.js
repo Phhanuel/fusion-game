@@ -216,6 +216,30 @@ function solve(board,cur,nxt,maxReached,dist,anc){
     o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
   return {list:res.slice(0,LIST_N),depth,risk};
 }
+// ---- Suite imaginée par le solveur (affichage seulement : ne change pas le conseil) ----
+// coup 2 : meilleure pose de la pièce suivante après le coup conseillé, jugée comme dans le calcul (3e tour en moyenne sur
+// les pièces probables) ; coup 3 : meilleure pose de la pièce la plus probable au 3e tour
+function planFor(board,best,nxt,dist,maxReached,anc){
+  anc=anc||{};if(!best||!best.after||!nxt||!nxt.length)return null;
+  const a=best.after,max1=Math.max(maxReached||0,...a.filter(l=>l<=MAXL));
+  const r2=rotations(nxt,anc.nxt),ok=dist&&dist.length;let b2=null;
+  for(const q of placements(a,r2)){const c=resolve(a,q,anc.nxt),m2=Math.max(max1,topLevel(c.merges)),dz=deadFor(m2);
+    let v=0.9*mergePts(c.merges);
+    if(ok){const dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;let ev=0;
+      for(const d of dd){const br=bestReply(c.b,d.rots,m2,0.8);ev+=d.p/mass*(br?br.v:-2000+evaluate(c.b,dz));}v+=ev;}
+    else v+=evaluate(c.b,dz);
+    if(!b2||v>b2.v)b2={v,q,c,m2};}
+  if(!b2)return {two:null};
+  const two={idx:b2.q.idx,shape:b2.q.shape,k:b2.q.k,before:a,after:b2.c.b,merges:b2.c.merges};
+  let three=null;
+  if(ok){const dz=deadFor(b2.m2),dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;
+    const top=dd.length?dd.reduce((x,y)=>y.p>x.p?y:x):null;
+    if(top){let bq=null;for(const q of placements(b2.c.b,top.rots)){const c=resolve(b2.c.b,q),m=Math.max(b2.m2,topLevel(c.merges));
+        const v=0.8*mergePts(c.merges)+evaluate(c.b,deadFor(m));if(!bq||v>bq.v)bq={v,q,c};}
+      three={piece:top.rots[0].shape.map(p=>p[2]),p:top.p/mass,before:b2.c.b,
+        idx:bq?bq.q.idx:null,shape:bq?bq.q.shape:null,after:bq?bq.c.b:null,merges:bq?bq.c.merges:[]};}}
+  return {two,three};
+}
 // ---- Coups jugés par simulation (Monte-Carlo) ----
 // Les 8 meilleurs coups du calcul habituel sont départagés en jouant, pour chacun, 32 fins de partie de 15 tours
 // (pièce suivante connue, puis pièces tirées selon les parties enregistrées, chaque pièce posée au mieux à 1 coup).

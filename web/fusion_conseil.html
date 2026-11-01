@@ -54,6 +54,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #info{font-size:13px;line-height:1.4;margin:0;white-space:pre-line}
 #info.err{color:var(--warn)}
 #boardCv{width:100%;max-width:320px;aspect-ratio:1/1;align-self:center}
+#bPlan{align-self:center}
+#plan{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;align-self:center;width:100%}
+#plan[hidden]{display:none}
+#plan figure{margin:0}#plan canvas{width:100%;aspect-ratio:1/1}
+#plan figcaption{font-size:12px;line-height:1.3;margin-top:3px}
 #pieceCv{width:96px;height:80px;flex:none}
 /* rappel de la zone des pièces du jeu : pièce actuelle telle qu'affichée + cadre de la pièce suivante */
 .seen{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#4a3f30;border-radius:10px;padding:6px 10px}
@@ -79,7 +84,7 @@ body.android .wrap>.col{margin-bottom:12px}
 body.android.compact .wrap{padding:0}
 body.android.compact .wrap>.col,body.android.compact #advHome>.lbl{display:none}
 body.android.compact #advHome{padding:0;border:0;border-radius:0;background:var(--bg)}
-body.android.compact #advice{position:relative;display:grid;grid-template-columns:44% 1fr;grid-template-areas:"board top" "board info" "status status";gap:2px 8px;padding:4px 6px;border-radius:0}
+body.android.compact #advice{position:relative;display:grid;grid-template-columns:44% 1fr;grid-template-areas:"board top" "board info" "planb planb" "plan plan" "status status";gap:2px 8px;padding:4px 6px;border-radius:0}
 body.android.compact .seen{display:none}
 body.android.compact #boardCv{grid-area:board;max-width:100%;width:100%}
 body.android.compact .adv-top{grid-area:top;padding-right:40px;gap:4px}
@@ -87,6 +92,9 @@ body.android.compact #rot{font-size:15px;line-height:1.15}
 body.android.compact #pieceCv{width:52px;height:44px}
 body.android.compact #info{grid-area:info;font-size:11px;line-height:1.3}
 body.android.compact #advStatus{grid-area:status;font-size:10px}
+body.android.compact #bPlan{grid-area:planb;padding:2px 8px;font-size:11px}
+body.android.compact #plan{grid-area:plan;max-width:78%;justify-self:center}
+body.android.compact #plan figcaption{font-size:10px}
 body.android:not(.compact) #advHome{margin-top:4px}
 </style>
 </head>
@@ -160,6 +168,11 @@ body.android:not(.compact) #advHome{margin-top:4px}
       <div class="adv-top"><p id="rot">—</p><canvas id="pieceCv" width="192" height="160"></canvas></div>
       <p id="info"></p>
       <canvas id="boardCv" width="640" height="640"></canvas>
+      <button id="bPlan" class="small" aria-expanded="false">Voir les coups 2 et 3</button>
+      <div id="plan" hidden>
+        <figure><canvas id="plan2" width="640" height="640"></canvas><figcaption id="plan2t"></figcaption></figure>
+        <figure><canvas id="plan3" width="640" height="640"></canvas><figcaption id="plan3t"></figcaption></figure>
+      </div>
       <p id="advStatus"></p>
     </div>
   </section>
@@ -388,6 +401,30 @@ function solve(board,cur,nxt,maxReached,dist,anc){
     const v=x=>x.m1+(x.v3!==undefined?x.v3:x.fut);const bo=o.outs.reduce((a,x)=>v(x)>v(a)?x:a);const wo=o.outs.reduce((a,x)=>v(x)<v(a)?x:a);
     o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
   return {list:res.slice(0,LIST_N),depth,risk};
+}
+// ---- Suite imaginée par le solveur (affichage seulement : ne change pas le conseil) ----
+// coup 2 : meilleure pose de la pièce suivante après le coup conseillé, jugée comme dans le calcul (3e tour en moyenne sur
+// les pièces probables) ; coup 3 : meilleure pose de la pièce la plus probable au 3e tour
+function planFor(board,best,nxt,dist,maxReached,anc){
+  anc=anc||{};if(!best||!best.after||!nxt||!nxt.length)return null;
+  const a=best.after,max1=Math.max(maxReached||0,...a.filter(l=>l<=MAXL));
+  const r2=rotations(nxt,anc.nxt),ok=dist&&dist.length;let b2=null;
+  for(const q of placements(a,r2)){const c=resolve(a,q,anc.nxt),m2=Math.max(max1,topLevel(c.merges)),dz=deadFor(m2);
+    let v=0.9*mergePts(c.merges);
+    if(ok){const dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;let ev=0;
+      for(const d of dd){const br=bestReply(c.b,d.rots,m2,0.8);ev+=d.p/mass*(br?br.v:-2000+evaluate(c.b,dz));}v+=ev;}
+    else v+=evaluate(c.b,dz);
+    if(!b2||v>b2.v)b2={v,q,c,m2};}
+  if(!b2)return {two:null};
+  const two={idx:b2.q.idx,shape:b2.q.shape,k:b2.q.k,before:a,after:b2.c.b,merges:b2.c.merges};
+  let three=null;
+  if(ok){const dz=deadFor(b2.m2),dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;
+    const top=dd.length?dd.reduce((x,y)=>y.p>x.p?y:x):null;
+    if(top){let bq=null;for(const q of placements(b2.c.b,top.rots)){const c=resolve(b2.c.b,q),m=Math.max(b2.m2,topLevel(c.merges));
+        const v=0.8*mergePts(c.merges)+evaluate(c.b,deadFor(m));if(!bq||v>bq.v)bq={v,q,c};}
+      three={piece:top.rots[0].shape.map(p=>p[2]),p:top.p/mass,before:b2.c.b,
+        idx:bq?bq.q.idx:null,shape:bq?bq.q.shape:null,after:bq?bq.c.b:null,merges:bq?bq.c.merges:[]};}}
+  return {two,three};
 }
 // ---- Coups jugés par simulation (Monte-Carlo) ----
 // Les 8 meilleurs coups du calcul habituel sont départagés en jouant, pour chacun, 32 fins de partie de 15 tours
@@ -846,6 +883,30 @@ function solve(board,cur,nxt,maxReached,dist,anc){
     const v=x=>x.m1+(x.v3!==undefined?x.v3:x.fut);const bo=o.outs.reduce((a,x)=>v(x)>v(a)?x:a);const wo=o.outs.reduce((a,x)=>v(x)<v(a)?x:a);
     o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
   return {list:res.slice(0,LIST_N),depth,risk};
+}
+// ---- Suite imaginée par le solveur (affichage seulement : ne change pas le conseil) ----
+// coup 2 : meilleure pose de la pièce suivante après le coup conseillé, jugée comme dans le calcul (3e tour en moyenne sur
+// les pièces probables) ; coup 3 : meilleure pose de la pièce la plus probable au 3e tour
+function planFor(board,best,nxt,dist,maxReached,anc){
+  anc=anc||{};if(!best||!best.after||!nxt||!nxt.length)return null;
+  const a=best.after,max1=Math.max(maxReached||0,...a.filter(l=>l<=MAXL));
+  const r2=rotations(nxt,anc.nxt),ok=dist&&dist.length;let b2=null;
+  for(const q of placements(a,r2)){const c=resolve(a,q,anc.nxt),m2=Math.max(max1,topLevel(c.merges)),dz=deadFor(m2);
+    let v=0.9*mergePts(c.merges);
+    if(ok){const dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;let ev=0;
+      for(const d of dd){const br=bestReply(c.b,d.rots,m2,0.8);ev+=d.p/mass*(br?br.v:-2000+evaluate(c.b,dz));}v+=ev;}
+    else v+=evaluate(c.b,dz);
+    if(!b2||v>b2.v)b2={v,q,c,m2};}
+  if(!b2)return {two:null};
+  const two={idx:b2.q.idx,shape:b2.q.shape,k:b2.q.k,before:a,after:b2.c.b,merges:b2.c.merges};
+  let three=null;
+  if(ok){const dz=deadFor(b2.m2),dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;
+    const top=dd.length?dd.reduce((x,y)=>y.p>x.p?y:x):null;
+    if(top){let bq=null;for(const q of placements(b2.c.b,top.rots)){const c=resolve(b2.c.b,q),m=Math.max(b2.m2,topLevel(c.merges));
+        const v=0.8*mergePts(c.merges)+evaluate(c.b,deadFor(m));if(!bq||v>bq.v)bq={v,q,c};}
+      three={piece:top.rots[0].shape.map(p=>p[2]),p:top.p/mass,before:b2.c.b,
+        idx:bq?bq.q.idx:null,shape:bq?bq.q.shape:null,after:bq?bq.c.b:null,merges:bq?bq.c.merges:[]};}}
+  return {two,three};
 }
 // ---- Coups jugés par simulation (Monte-Carlo) ----
 // Les 8 meilleurs coups du calcul habituel sont départagés en jouant, pour chacun, 32 fins de partie de 15 tours
@@ -1315,6 +1376,7 @@ onmessage=e=>{const d=e.data;let out;
   try{const dist=(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p}));STAR=!!d.star;out=(d.mc?solveMC:solve)(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.star&&out.list&&(starWin(d.board)||out.list[0].dead))out.star=solveStar(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(d.hammer&&out.list&&out.list[0].dead)out.hammer=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);
     else if(d.hammers>=2&&out.list&&!out.list[0].dead){const h=solveHammer(d.board,d.cur,d.nxt,d.max,dist,d.anc);if(h&&!h.move.dead&&h.v>out.list[0].score+HAM_BONUS_MIN){h.bonus=true;out.hammer=h;}}}
   catch(err){out={err:'Erreur de calcul : '+err.message};}
+  try{if(d.plan&&out.list&&out.list[0])out.plan=planFor(d.board,out.list[0],d.nxt,(d.dist||[]).map(x=>({rots:rotations(keyToPiece(x.key)),p:x.p})),d.max,d.anc);}catch(e){out.plan=null;}
   postMessage({id:d.id,out});};`.replace('let out;','let out;HI_MULT=d.hi||2;MARGE=d.marge||1;SL5=d.sl5||0;TARGET=d.target??-1;TARGET_L=d.targetL||7;TARGET_TOP=Math.max(0,...d.board.filter(l=>l<=MAXL));');
   worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
   worker.onmessage=e=>{if(!pending||e.data.id!==pending.id)return;const p=pending;pending=null;finish(p.r,p.ms,p.warn,p.trash,e.data.out,p.t0);};
@@ -1346,7 +1408,7 @@ function show(r,ms){
     // calcul en arrière-plan : la lecture de l'écran reste fluide pendant que le conseil se calcule
     pending={id:++reqId,r,ms,warn,trash,t0:performance.now()};
     $('advStatus').textContent+=' · calcul…';
-    worker.postMessage({id:reqId,target:TARGET,targetL:TARGET_L,sl5:SL5,star:starOK,hammers,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
+    worker.postMessage({id:reqId,plan:PLAN,target:TARGET,targetL:TARGET_L,sl5:SL5,star:starOK,hammers,mc:useMC(r.board),hi:HI_MULT,marge:MARGE,hammer:hammerOK,anc:{cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor},board:r.board,cur:r.cur,nxt,max:effMax,dist:dist.list.map(x=>({key:x.key,p:x.p}))});
     return;}
   const t0=performance.now();
   const anc={cur:r.curAnchor,nxt:r.nxtUnknown?undefined:r.nxtAnchor};
@@ -1354,9 +1416,11 @@ function show(r,ms){
   if(starOK&&o0.list&&(starWin(r.board)||o0.list[0].dead))o0.star=solveStar(r.board,r.cur,nxt,effMax,dist.list,anc);
   if(hammerOK&&o0.list&&o0.list[0].dead)o0.hammer=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);
   else if(hammers>=2&&o0.list&&!o0.list[0].dead){const h=solveHammer(r.board,r.cur,nxt,effMax,dist.list,anc);if(h&&!h.move.dead&&h.v>o0.list[0].score+HAM_BONUS_MIN){h.bonus=true;o0.hammer=h;}}
+  if(PLAN&&o0.list&&o0.list[0])try{o0.plan=planFor(r.board,o0.list[0],nxt,dist.list,effMax,anc);}catch(e){}
   finish(r,ms,warn,trash,o0,t0);
 }
 function finish(r,ms,warn,trash,out,t0){
+  if(PLAN){['plan2','plan3'].forEach(i=>$(i).getContext('2d').clearRect(0,0,640,640));$('plan2t').textContent='';$('plan3t').textContent='';}
   curAnchorShown=r.curAnchor;
   $('advStatus').textContent=`Pièce ${pdesc(r.cur,r.curUnknown)} · suivante ${pdesc(r.nxt,r.nxtUnknown)} · lecture ${Math.round(ms)} ms · calcul ${Math.round(performance.now()-t0)} ms`;
   const best=out.list&&out.list[0];
@@ -1408,17 +1472,31 @@ function finish(r,ms,warn,trash,out,t0){
     if(!r.board[TARGET]){const tb=r.board.slice();tb[TARGET]=TARGET_L;if(groupOf(tb,TARGET).length>=3)lines.push(`⚠ Un N${TARGET_L} posé sur la case cible fusionnerait tout de suite avec les N${TARGET_L} voisins : change le niveau ou la case.`);}}
   $('info').textContent=lines.concat(warn).join('\n');
   drawPiece(best.shape);drawBoard(r.board,best,undefined,best.uncertain&&best.gap>20?best.bestAt:undefined);
+  drawPlan(out.plan,r);
 }
+// coups 2 et 3 imaginés par le solveur
+let PLAN=store.get('plan',false);
+function drawPlan(pl,r){
+  if(!PLAN)return;
+  const two=pl&&pl.two,three=pl&&pl.three,none=t=>{const cv=$(t),c=cv.getContext('2d');c.clearRect(0,0,640,640);};
+  if(two){drawBoard(two.before,two,undefined,undefined,undefined,'plan2',r.nxtAnchor);
+    $('plan2t').textContent=`Coup 2 · pièce suivante : ${two.k?'tourner '+two.k+'× ↻':'telle quelle'}`+(two.merges.length?' · '+mtxt(two.merges):' · pas de fusion');}
+  else{none('plan2');$('plan2t').textContent=pl===undefined?'Coup 2 : calcul…':r.nxtUnknown||!r.nxt.length?'Coup 2 : pièce suivante non lue.':'Coup 2 : la pièce suivante ne rentrerait pas.';}
+  if(three&&three.idx){drawBoard(three.before,three,undefined,undefined,undefined,'plan3',null);
+    $('plan3t').textContent=`Coup 3 · si la pièce est ${three.piece.map(l=>'N'+l).join('-')} (la plus probable, ${Math.round(100*three.p)} %)`+(three.merges.length?' · '+mtxt(three.merges):' · pas de fusion');}
+  else{none('plan3');$('plan3t').textContent=two?'Coup 3 : pas assez de pièces enregistrées pour le prévoir (15 nécessaires).':'';}
+}
+function setPlan(v){PLAN=v;store.set('plan',v);$('plan').hidden=!v;$('bPlan').textContent=v?'Masquer les coups 2 et 3':'Voir les coups 2 et 3';$('bPlan').setAttribute('aria-expanded',v);solvedSig=null;lastSig=null;}
 function tile(ctx,x,y,s,l,ghost){
   const unk=l===BLOCK;
   ctx.fillStyle=unk?'#5a463a':l?COLORS[l]:'#110c0a';ctx.strokeStyle=ghost?'#f2b632':'#0a0705';ctx.lineWidth=ghost?8:3;
   ctx.beginPath();ctx.roundRect(x,y,s,s,s*.2);ctx.fill();ctx.stroke();
   if(l){ctx.fillStyle=unk?'#fff':ink(COLORS[l]);ctx.font=`800 ${s*.45}px Segoe UI,system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(unk?'?':l,x+s/2,y+s/2+2);}
 }
-function drawBoard(board,best,hamCell,starCell,hamLevel){
+function drawBoard(board,best,hamCell,starCell,hamLevel,cvId,anchor){
   // case où tombera la fusion : tuile « point » de la pièce posée
-  const dotCell=best&&curAnchorShown!==undefined?best.idx[curAnchorShown]:undefined;
-  const cv=$('boardCv'),ctx=cv.getContext('2d');ctx.clearRect(0,0,640,640);
+  const an=cvId?anchor:curAnchorShown,dotCell=best&&an!==undefined&&an!==null?best.idx[an]:undefined;
+  const cv=$(cvId||'boardCv'),ctx=cv.getContext('2d');ctx.clearRect(0,0,640,640);
   ctx.fillStyle='#261d18';ctx.beginPath();ctx.roundRect(0,0,640,640,24);ctx.fill();
   const ghost={};if(best)best.idx.forEach((j,n)=>ghost[j]=best.shape[n][2]);
   CELLS.forEach((o,i)=>{const x=14+o.c*124,y=10+(o.row+(o.c%2)*.5)*124;
@@ -1600,6 +1678,7 @@ $('boardCv').onclick=e=>{const cv=$('boardCv'),r=cv.getBoundingClientRect(),x=(e
   if(prevBoard&&prevBoard[i]){setStatus('Choisis une case vide : la fusion tombe sur la pièce posée.',true);return;}
   const d=Math.max(5,Math.min(9,maxReached-1));targetSeq=[];for(let l=d;l<=9;l++)targetSeq.push(l);for(let l=5;l<d;l++)targetSeq.push(l);targetK=0;
   setTarget(i,d);setStatus(`Case cible : colonne ${CELLS[i].c+1}, ligne ${CELLS[i].row+1}, niveau visé N${d}. Touche-la encore pour changer le niveau.`);};
+setPlan(PLAN);$('bPlan').onclick=()=>setPlan(!PLAN);
 $('bGoal').onclick=()=>setGoal({normal:'fast',fast:'five',five:'normal'}[GOAL]);
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
