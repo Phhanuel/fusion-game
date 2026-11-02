@@ -110,11 +110,13 @@ function starWin(b){
 const POW2=[1,2,4,8,16,32,64,128,256,512,1024];
 function evaluate(b,dead){
   let s=survival(b);if(STAR&&starWin(b))s+=4000;
-  // case cible choisie par le joueur : consigne stricte, exactement le niveau TARGET_L sur cette case
-  // (aucun « mieux ailleurs » : seul un N10, le but du jeu, passe avant) ; d'ici là la case reste libre
-  if(TARGET>=0){const t=b[TARGET];let v=t===TARGET_L?1500:t&&t<=MAXL?-3000:0;
-    if(v<1500)for(let i=0;i<N;i++)if(b[i]===10){v=1500;break;}
-    s+=v;}
+  // case cible choisie par le joueur : la prochaine grosse relique (niveau TARGET_L ou plus) doit tomber là ;
+  // d'ici là la case reste libre (petite relique posée dessus = malus)
+  // une relique d'un niveau nouveau créée ailleurs (ex. N9 au lieu du N8 sur la cible) vaut au moins autant : la cible ne fait jamais rater mieux
+  if(TARGET>=0){const t=b[TARGET];let v=t>=TARGET_L&&t<=MAXL?1000*POW2[Math.min(3,t-TARGET_L)]:t&&t<=MAXL?-150:0,up=0,n10=false;
+    // seulement un niveau jamais vu sur le plateau (ex. N9 quand le plus haut est N8) : un N8 de plus ailleurs ne remplace pas la cible
+    const lim=Math.max(TARGET_L,TARGET_TOP);for(let i=0;i<N;i++){const l=b[i];if(l>lim&&l<=MAXL){up++;if(l>=10)n10=true;}}
+    if(up||n10)v=Math.max(v,2000);s+=v;}
   const da=dead._a||(dead._a=Array.from({length:MAXL+2},(_,l)=>dead.has(l)));
   for(let i=0;i<N;i++){const nb=NB[i],bi=b[i];
     // valeur d'une case vide : 16 (au lieu de 8) d'après le rejeu de 4 parties enregistrées (+14 tours de survie)
@@ -215,30 +217,6 @@ function solve(board,cur,nxt,maxReached,dist,anc){
     const v=x=>x.m1+(x.v3!==undefined?x.v3:x.fut);const bo=o.outs.reduce((a,x)=>v(x)>v(a)?x:a);const wo=o.outs.reduce((a,x)=>v(x)<v(a)?x:a);
     o.bestAt=bo.at;o.gap=v(bo)-v(wo);}
   return {list:res.slice(0,LIST_N),depth,risk};
-}
-// ---- Suite imaginée par le solveur (affichage seulement : ne change pas le conseil) ----
-// coup 2 : meilleure pose de la pièce suivante après le coup conseillé, jugée comme dans le calcul (3e tour en moyenne sur
-// les pièces probables) ; coup 3 : meilleure pose de la pièce la plus probable au 3e tour
-function planFor(board,best,nxt,dist,maxReached,anc){
-  anc=anc||{};if(!best||!best.after||!nxt||!nxt.length)return null;
-  const a=best.after,max1=Math.max(maxReached||0,...a.filter(l=>l<=MAXL));
-  const r2=rotations(nxt,anc.nxt),ok=dist&&dist.length;let b2=null;
-  for(const q of placements(a,r2)){const c=resolve(a,q,anc.nxt),m2=Math.max(max1,topLevel(c.merges)),dz=deadFor(m2);
-    let v=0.9*mergePts(c.merges);
-    if(ok){const dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;let ev=0;
-      for(const d of dd){const br=bestReply(c.b,d.rots,m2,0.8);ev+=d.p/mass*(br?br.v:-2000+evaluate(c.b,dz));}v+=ev;}
-    else v+=evaluate(c.b,dz);
-    if(!b2||v>b2.v)b2={v,q,c,m2};}
-  if(!b2)return {two:null};
-  const two={idx:b2.q.idx,shape:b2.q.shape,k:b2.q.k,before:a,after:b2.c.b,merges:b2.c.merges};
-  let three=null;
-  if(ok){const dz=deadFor(b2.m2),dd=dist.filter(d=>!d.rots[0].shape.some(p=>dz.has(p[2]))),mass=dd.reduce((x,d)=>x+d.p,0)||1;
-    const top=dd.length?dd.reduce((x,y)=>y.p>x.p?y:x):null;
-    if(top){let bq=null;for(const q of placements(b2.c.b,top.rots)){const c=resolve(b2.c.b,q),m=Math.max(b2.m2,topLevel(c.merges));
-        const v=0.8*mergePts(c.merges)+evaluate(c.b,deadFor(m));if(!bq||v>bq.v)bq={v,q,c};}
-      three={piece:top.rots[0].shape.map(p=>p[2]),p:top.p/mass,before:b2.c.b,
-        idx:bq?bq.q.idx:null,shape:bq?bq.q.shape:null,after:bq?bq.c.b:null,merges:bq?bq.c.merges:[]};}}
-  return {two,three};
 }
 // ---- Coups jugés par simulation (Monte-Carlo) ----
 // Les 8 meilleurs coups du calcul habituel sont départagés en jouant, pour chacun, 32 fins de partie de 15 tours
