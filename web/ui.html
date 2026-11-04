@@ -733,7 +733,10 @@ async function autoSend(actions){
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // mesure : on tient la pièce au-dessus de sa case, on repère où le jeu l'affiche (pixels changés), et on corrige la pose
 async function measureDrag(g,tiles,tx,ty){
-  const pre=lastImg;if(!pre||pre.width!==cfg.w)throw new Error('pas d\'image du jeu');
+  const pre0=lastImg;if(!pre0||pre0.width!==cfg.w)throw new Error('pas d\'image du jeu');
+  // 2 images du jeu au repos : les pixels qui bougent seuls (animations) seront ignorés
+  {const t1=performance.now();while(lastImg===pre0&&performance.now()-t1<1500)await sleep(80);}
+  const pre=lastImg,Z=pre0.data;
   const G=boardGeom(cfg),dx=(cfg.br[0]-cfg.tl[0])/4,dy=(cfg.br[1]-cfg.tl[1])/4;
   // pièce tenue en bas du plateau (colonne du milieu) : même décalée vers le haut, elle reste dans la fenêtre
   const hx=(cfg.tl[0]+cfg.br[0])/2,hy=cfg.br[1];
@@ -742,12 +745,13 @@ async function measureDrag(g,tiles,tx,ty){
   const t0=performance.now();let seen=0,last=lastImg;
   while(performance.now()-t0<2500&&seen<3){await sleep(120);if(lastImg!==last){last=lastImg;seen++;}}
   const img=lastImg;
-  // pixels changés sur le plateau et autour (pas au-dessus : la scène animée du jeu fausserait la mesure), hors pièces
-  const R=[cfg.tl[0]-1.2*dx,cfg.tl[1]-1.2*dy,cfg.br[0]+1.2*dx,cfg.br[1]+1.2*dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
+  // pixels changés sur le plateau seulement (le décor animé du jeu, autour de la forge, fausserait la mesure)
+  const R=[cfg.tl[0]-0.5*dx,cfg.tl[1]-0.5*dy,cfg.br[0]+0.5*dx,cfg.br[1]+0.5*dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
   const ex=z=>[z[0]-8,z[1]-8,z[2]+8,z[3]+8],cur=ex(cfg.cur),nxt=ex(cfg.next);
   const xs=[],ys=[];let n=0;const A=pre.data,B=img.data,W=img.width;
   for(let y=Math.max(0,R[1]);y<Math.min(img.height,R[3]);y+=2)for(let x=Math.max(0,R[0]);x<Math.min(W,R[2]);x+=2){
     if(inR(x,y,cur)||inR(x,y,nxt))continue;const i=(y*W+x)*4;
+    if(Math.abs(Z[i]-A[i])+Math.abs(Z[i+1]-A[i+1])+Math.abs(Z[i+2]-A[i+2])>40)continue;   // bouge tout seul
     if(Math.abs(A[i]-B[i])+Math.abs(A[i+1]-B[i+1])+Math.abs(A[i+2]-B[i+2])>80){xs.push(x);ys.push(y);n++;}}
   const need=Math.round(0.15*G.size*G.size/4*tiles.length);
   if(seen<1||n<need){await autoSend([{type:'release',x:g.t.cx,y:g.t.cy}]);
