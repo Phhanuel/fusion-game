@@ -107,6 +107,8 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <button id="bPause" disabled>Pause</button>
         <button id="bHammer" title="Nombre de marteaux (0 à 2). Suivi automatique ; touche pour corriger si besoin.">Marteaux : 1</button>
         <button id="bStar" title="Étoile : une par partie. Suivi automatique ; touche pour corriger si besoin.">Étoile : disponible</button>
+        <button id="bRotCal" hidden title="Mode auto : clique une fois sur le bouton de rotation du jeu">Auto · bouton de rotation</button>
+        <button id="bAuto" hidden title="Mode auto : la souris joue le coup conseillé. Pour l'arrêter : ce bouton, ou la souris dans le coin haut-gauche de l'écran.">Auto : arrêté</button>
         <button id="bGoal" title="Normal : le réglage le plus testé. Rapide : pousse plus fort vers les gros niveaux, N10 en environ 15 % de tours en moins en simulation. Fusions de 5 : prépare deux paires de même niveau autour d une case vide, comme le schéma du guide (même réussite en simulation, N10 un peu plus tard).">Mode : normal</button>
       </div>
       <p class="status" id="status">Commence par choisir la fenêtre du jeu (onglet « Fenêtre »).</p>
@@ -1386,7 +1388,7 @@ function finish(r,ms,warn,trash,out,t0){
     $('info').textContent=[`Utilise l'étoile sur le N${st.level} de la colonne ${c.c+1}, ligne ${c.row+1} (★) : il passe N${st.level+1}`+(st.n10?' et la fusion donne un N10 !':'.'),
       m?`Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`:'',
       st.n10?'':'Sans l\'étoile, la pièce suivante ne rentrera nulle part.'].filter(Boolean).concat(warn).join('\n');
-    drawPiece(m?m.shape:null);drawBoard(st.board,m,undefined,st.cell);return;}
+    drawPiece(m?m.shape:null);drawBoard(st.board,m,undefined,st.cell);autoAlert('Étoile');return;}
   // marteau conseillé : le jeu s'arrête dès que la pièce ne rentre plus, donc le marteau s'utilise un tour avant,
   // quand aucun coup ne laisse de place à la pièce suivante
   // 2 marteaux en main : en utiliser un dès que c'est rentable (simulation sur 140 parties : N10 13 fois contre 4,
@@ -1397,14 +1399,14 @@ function finish(r,ms,warn,trash,out,t0){
     $('info').textContent=[`Tu as 2 marteaux : utilise-en un sur le N${h.level} de la colonne ${c.c+1}, ligne ${c.row+1} (étiquette rouge).`,
       `Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`,
       'Garder 2 marteaux ne sert à rien : les fusions de 5 en rendent, mais pas au-delà de 2.'].concat(warn).join('\n');
-    drawPiece(m.shape);drawBoard(h.board,m,h.cell,undefined,h.level);return;}
+    drawPiece(m.shape);drawBoard(h.board,m,h.cell,undefined,h.level);autoAlert('Marteau');return;}
   if(best&&best.dead&&out.hammer&&!out.hammer.move.dead){
     const h=out.hammer,m=h.move,c=CELLS[h.cell];if(lt&&lt.b===bstr(r.board)&&m.after)lt.hamAfter=bstr(m.after);
     $('rot').textContent='Marteau !';$('info').className='err';
     $('info').textContent=[`Utilise le marteau sur le N${h.level} de la colonne ${c.c+1}, ligne ${c.row+1} (étiquette rouge).`,
       `Puis : ${m.k?'tourner '+m.k+'× ↻':'poser la pièce telle quelle'} à l'emplacement jaune.`,
       'Sans marteau, la pièce suivante ne rentrera nulle part et la partie s\'arrêtera.'].concat(warn).join('\n');
-    drawPiece(m.shape);drawBoard(h.board,m,h.cell,undefined,h.level);return;}
+    drawPiece(m.shape);drawBoard(h.board,m,h.cell,undefined,h.level);autoAlert('Marteau');return;}
   if(!best){$('rot').textContent=out.over?'Fin de partie':'—';$('info').className=out.over?'':'err';$('info').textContent=[out.err||''].concat(warn).join('\n');drawPiece(null);drawBoard(r.board,null);return;}
   $('rot').textContent=best.k?`Tourner ${best.k}× ↻`:'Poser tel quel';
   const lines=[best.merges.length?'Fusion : '+mtxt(best.merges):'Pas de fusion ce tour'];
@@ -1422,6 +1424,7 @@ function finish(r,ms,warn,trash,out,t0){
   if(TARGET>=0){const c=CELLS[TARGET];lines.push(`◎ Case cible : colonne ${c.c+1}, ligne ${c.row+1} (prochain N${TARGET_L} ou plus). Touche-la encore pour changer le niveau, puis pour l'enlever.`);}
   $('info').textContent=lines.concat(warn).join('\n');
   drawPiece(best.shape);drawBoard(r.board,best,undefined,best.uncertain&&best.gap>20?best.bestAt:undefined);
+  autoPlay(r,best,warn);
 }
 function tile(ctx,x,y,s,l,ghost){
   const unk=l===BLOCK;
@@ -1532,6 +1535,7 @@ $('ovCv').onclick=e=>{
   const cv=e.currentTarget,r=cv.getBoundingClientRect();
   const x=(e.clientX-r.left)*cv.width/r.width,y=(e.clientY-r.top)*cv.height/r.height;
   const ctx=cv.getContext('2d'),lw=Math.max(3,cv.width/300);
+  if(ovMode==='rot'){cfg.rot=[x,y];store.set('cfg',cfg);closeOverlay();setStatus('Bouton de rotation enregistré. Tu peux lancer « Auto ».');updAuto();return;}
   if(ovMode==='pick'){
     const t=tileAt(ovImg,x,y);
     if(!t){$('ovTxt').textContent="Aucun objet trouvé à cet endroit : clique bien au milieu d'un objet.";return;}
@@ -1614,6 +1618,44 @@ $('boardCv').onclick=e=>{const cv=$('boardCv'),r=cv.getBoundingClientRect(),x=(e
   if(prevBoard&&prevBoard[i]){setStatus('Choisis une case vide : la fusion tombe sur la pièce posée.',true);return;}
   const d=Math.max(5,Math.min(9,maxReached-1));targetSeq=[];for(let l=d;l<=9;l++)targetSeq.push(l);for(let l=5;l<d;l++)targetSeq.push(l);targetK=0;
   setTarget(i,d);setStatus(`Case cible : colonne ${CELLS[i].c+1}, ligne ${CELLS[i].row+1}, niveau visé N${d}. Touche-la encore pour changer le niveau.`);};
+/* --- mode auto (PC) : fusion_auto.py sert cette page et bouge la souris --- */
+// le coup est joué seulement sur une lecture complète ; marteau et étoile : l'auto s'arrête et sonne, le joueur décide
+let AUTO=false,autoHelper=false,autoBusy=false,autoSig=null,autoTries=0,autoRot=0,autoWatch=null;
+function updAuto(){$('bAuto').hidden=$('bRotCal').hidden=!autoHelper;$('bAuto').disabled=!(cfg&&cfg.rot);
+  $('bAuto').textContent=AUTO?'Auto : en marche (arrêter)':'Auto : arrêté';$('bAuto').classList.toggle('primary',AUTO);}
+function setAuto(v,msg){AUTO=v;autoSig=null;autoTries=0;autoRot=0;clearTimeout(autoWatch);updAuto();if(msg)setStatus(msg,!v);if(v){solvedSig=null;lastSig=null;}}
+if(location.protocol.startsWith('http'))fetch('/ping').then(r=>r.ok&&r.text()).then(t=>{if(t==='fusion-auto'){autoHelper=true;updAuto();}}).catch(()=>{});
+$('bRotCal').onclick=()=>openOverlay('rot','Clique au centre du bouton de rotation du jeu (les flèches rondes).');
+$('bAuto').onclick=()=>setAuto(!AUTO,AUTO?'Auto arrêté.':'Auto en marche : ne touche plus la souris. Pour arrêter : bouton « Auto », ou souris dans le coin haut-gauche de l\'écran.');
+let beepCtx=null;
+function beep(){try{beepCtx=beepCtx||new AudioContext();const o=beepCtx.createOscillator(),g=beepCtx.createGain();o.frequency.value=880;g.gain.value=0.15;o.connect(g);g.connect(beepCtx.destination);o.start();o.stop(beepCtx.currentTime+0.35);}catch(e){}}
+function autoAlert(what){if(!AUTO)return;beep();setStatus(`Auto en attente : ${what} conseillé, à toi de le faire dans le jeu. L'auto reprend tout seul ensuite.`,true);}
+async function autoSend(actions){
+  const res=await fetch('/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({w:cfg.w,h:cfg.h,actions})});
+  const j=await res.json().catch(()=>({ok:false,err:'réponse illisible'}));if(!j.ok)throw new Error(j.err||'erreur');}
+async function autoPlay(r,best,warn){
+  if(!AUTO||autoBusy||!cfg||!cfg.rot)return;
+  if(r.unknown.length){setStatus('Auto en attente : objet non reconnu sur le plateau.',true);return;}
+  const sig=bstr(r.board)+'|'+JSON.stringify(r.cur);
+  if(sig===autoSig){if(++autoTries>2){beep();setAuto(false,'Auto arrêté : le coup ne passe pas dans le jeu (vérifie le calibrage).');return;}}else{autoSig=sig;autoTries=0;}
+  let actions;
+  if(best.k){if(++autoRot>8){beep();setAuto(false,'Auto arrêté : la rotation ne donne pas la position attendue.');return;}
+    actions=Array.from({length:best.k},()=>({type:'click',x:cfg.rot[0],y:cfg.rot[1]}));}
+  else{autoRot=0;
+    // tuile saisie : la plus proche du centre de la pièce ; déposée au centre de sa case
+    const tiles=r.cur.map((p,n)=>({n,t:r.curTiles.find(t=>t.dq===p[0]&&t.dr===p[1])}));if(tiles.some(x=>!x.t))return;
+    const mx=tiles.reduce((a,x)=>a+x.t.cx,0)/tiles.length,my=tiles.reduce((a,x)=>a+x.t.cy,0)/tiles.length;
+    const g=tiles.reduce((a,x)=>Math.hypot(x.t.cx-mx,x.t.cy-my)<Math.hypot(a.t.cx-mx,a.t.cy-my)?x:a);
+    const [tx,ty]=boardGeom(cfg).centers[best.idx[g.n]];
+    // puis la souris va se poser sur le bouton de rotation (zone non lue) pour ne cacher ni le plateau ni les pièces
+    actions=[{type:'drag',x1:g.t.cx,y1:g.t.cy,x2:tx,y2:ty},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}];}
+  autoBusy=true;
+  try{await autoSend(actions);setStatus(best.k?`Auto : rotation ×${best.k}.`:'Auto : pièce posée.');}
+  catch(e){beep();setAuto(false,'Auto arrêté : '+e.message);}
+  finally{autoBusy=false;lastSig=null;solvedSig=null;
+    // rien de nouveau 6 s après le coup : on relit (le coup sera retenté 2 fois au plus)
+    clearTimeout(autoWatch);autoWatch=setTimeout(()=>{if(AUTO){solvedSig=null;lastSig=null;}},6000);}
+}
 $('bGoal').onclick=()=>setGoal({normal:'fast',fast:'five',five:'normal'}[GOAL]);
 renderLevels();renderGames();drawBoard(new Array(N).fill(0),null);
 if(cfg)setStatus("Calibrage déjà enregistré. Choisis la fenêtre du jeu pour démarrer.");
