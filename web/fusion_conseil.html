@@ -1648,19 +1648,28 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function measureDrag(g,tiles,tx,ty){
   const pre=lastImg;if(!pre||pre.width!==cfg.w)throw new Error('pas d\'image du jeu');
   const G=boardGeom(cfg),dx=(cfg.br[0]-cfg.tl[0])/4,dy=(cfg.br[1]-cfg.tl[1])/4;
-  await autoSend([{type:'grab',x1:g.t.cx,y1:g.t.cy,x2:tx,y2:ty}]);
-  await sleep(600);const img=lastImg;
-  const R=[cfg.tl[0]-dx,cfg.tl[1]-3.2*dy,cfg.br[0]+dx,cfg.br[1]+dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
+  // pièce tenue en bas du plateau (colonne du milieu) : même décalée vers le haut, elle reste dans la fenêtre
+  const hx=(cfg.tl[0]+cfg.br[0])/2,hy=cfg.br[1];
+  await autoSend([{type:'grab',x1:g.t.cx,y1:g.t.cy,x2:hx,y2:hy}]);
+  // on attend 2 images neuves du jeu
+  const t0=performance.now();let seen=0,last=lastImg;
+  while(performance.now()-t0<2500&&seen<3){await sleep(120);if(lastImg!==last){last=lastImg;seen++;}}
+  const img=lastImg;
+  // pixels changés dans tout le panneau de la forge (hors pièces et pièce suivante), grosse marge vers le haut
+  const R=[cfg.tl[0]-1.5*dx,0,cfg.br[0]+1.5*dx,cfg.br[1]+1.2*dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
+  const ex=z=>[z[0]-8,z[1]-8,z[2]+8,z[3]+8],cur=ex(cfg.cur),nxt=ex(cfg.next);
   let sx=0,sy=0,n=0;const A=pre.data,B=img.data,W=img.width;
   for(let y=Math.max(0,R[1]);y<Math.min(img.height,R[3]);y+=2)for(let x=Math.max(0,R[0]);x<Math.min(W,R[2]);x+=2){
-    if(inR(x,y,cfg.cur)||inR(x,y,cfg.next))continue;const i=(y*W+x)*4;
-    if(Math.abs(A[i]-B[i])+Math.abs(A[i+1]-B[i+1])+Math.abs(A[i+2]-B[i+2])>90){sx+=x;sy+=y;n++;}}
+    if(inR(x,y,cur)||inR(x,y,nxt))continue;const i=(y*W+x)*4;
+    if(Math.abs(A[i]-B[i])+Math.abs(A[i+1]-B[i+1])+Math.abs(A[i+2]-B[i+2])>80){sx+=x;sy+=y;n++;}}
   const mx=tiles.reduce((a,x)=>a+x.t.cx,0)/tiles.length,my=tiles.reduce((a,x)=>a+x.t.cy,0)/tiles.length;
   const tray=tiles.map(x=>x.t.size).sort((a,b)=>a-b)[tiles.length>>1],k=G.size/tray;
-  if(n<(0.25*G.size*G.size)/4*tiles.length){await autoSend([{type:'release',x:g.t.cx,y:g.t.cy}]);throw new Error('pièce tenue introuvable à l\'écran (réessaie, jeu bien visible)');}
+  const need=Math.round(0.15*G.size*G.size/4*tiles.length);
+  if(seen<1||n<need){await autoSend([{type:'release',x:g.t.cx,y:g.t.cy}]);
+    throw new Error(`pièce tenue introuvable à l'écran (${seen} image(s) neuve(s), ${n} points changés sur ${need} attendus). Garde la page visible, non recouverte.`);}
   const fx=sx/n,fy=sy/n,dgx=fx+k*(g.t.cx-mx),dgy=fy+k*(g.t.cy-my);
-  cfg.dragOff=[Math.round(dgx-tx),Math.round(dgy-ty)];store.set('cfg',cfg);
-  setStatus(`Décalage de la pièce mesuré : ${cfg.dragOff[0]} px, ${cfg.dragOff[1]} px. Pose corrigée.`);
+  cfg.dragOff=[Math.round(dgx-hx),Math.round(dgy-hy)];store.set('cfg',cfg);
+  setStatus(`Décalage de la pièce mesuré : ${cfg.dragOff[0]} px, ${cfg.dragOff[1]} px (${n} points). Pose corrigée.`);
   await autoSend([{type:'release',x:tx-cfg.dragOff[0],y:ty-cfg.dragOff[1]},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}]);
 }
 async function autoPlay(r,best,warn){

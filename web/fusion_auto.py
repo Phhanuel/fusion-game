@@ -71,7 +71,7 @@ def game_window_rect():
 
 def to_screen(w, h):
     """Fonction image du jeu (w×h) -> écran. Écran entier partagé : même taille qu'un moniteur ; sinon fenêtre du jeu."""
-    with mss.mss() as m:
+    with (mss.MSS() if hasattr(mss, 'MSS') else mss.mss()) as m:
         for mon in m.monitors[1:]:
             if mon["width"] == w and mon["height"] == h:
                 print(f"  repère : écran entier {w}x{h} à ({mon['left']},{mon['top']})")
