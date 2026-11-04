@@ -74,11 +74,13 @@ def to_screen(w, h):
     with mss.mss() as m:
         for mon in m.monitors[1:]:
             if mon["width"] == w and mon["height"] == h:
+                print(f"  repère : écran entier {w}x{h} à ({mon['left']},{mon['top']})")
                 return lambda x, y: (mon["left"] + x, mon["top"] + y)
     win = game_window_rect()
     if win:
         left, top, ww, hh = win
         sx, sy = ww / w, hh / h
+        print(f"  repère : fenêtre du jeu {ww}x{hh} à ({left},{top}), image {w}x{h}, échelle {sx:.3f} x {sy:.3f}")
         return lambda x, y: (left + x * sx, top + y * sy)
     raise RuntimeError("fenêtre du jeu introuvable (partage plutôt l'écran entier)")
 
@@ -98,19 +100,27 @@ def play(w, h, actions):
         elif a["type"] == "move":
             x, y = conv(jitter(a["x"], 6), jitter(a["y"], 6))
             pyautogui.moveTo(x, y, duration=random.uniform(0.1, 0.2))
+        elif a["type"] == "show":       # test : la souris se pose sur un point, sans cliquer
+            x, y = conv(a["x"], a["y"])
+            print(f"  test {a.get('label', '')} : image ({a['x']:.0f},{a['y']:.0f}) -> écran ({x:.0f},{y:.0f})")
+            pyautogui.moveTo(x, y, duration=0.3)
+            time.sleep(1.2)
         elif a["type"] == "drag":
             x1, y1 = conv(jitter(a["x1"], 2), jitter(a["y1"], 2))
             x2, y2 = conv(jitter(a["x2"], 2), jitter(a["y2"], 2))
-            pyautogui.moveTo(x1, y1, duration=random.uniform(0.12, 0.25))
-            pyautogui.mouseDown()
-            time.sleep(random.uniform(0.08, 0.15))
-            # trajet en plusieurs étapes : le jeu suit la pièce
-            steps = 12
+            print(f"  glisser : ({x1:.0f},{y1:.0f}) -> ({x2:.0f},{y2:.0f}) à l'écran")
+            pyautogui.moveTo(x1, y1, duration=random.uniform(0.15, 0.25))
+            time.sleep(0.1)
+            pyautogui.mouseDown(x1, y1)
+            time.sleep(random.uniform(0.2, 0.3))         # le jeu « attrape » la pièce
+            # petit décollage, puis trajet lent en 25 étapes : certains jeux ignorent un saut direct
+            pyautogui.moveTo(x1 + 4, y1 - 4, duration=0.05)
+            steps = 25
             for i in range(1, steps + 1):
                 t = i / steps
-                pyautogui.moveTo(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, duration=0.02)
-            time.sleep(random.uniform(0.08, 0.15))
-            pyautogui.mouseUp()
+                pyautogui.moveTo(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, duration=0.015)
+            time.sleep(random.uniform(0.2, 0.3))         # la pièce se cale sur la case
+            pyautogui.mouseUp(x2, y2)
             time.sleep(random.uniform(0.9, 1.2))       # fusions et animation
 
 

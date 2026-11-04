@@ -108,6 +108,7 @@ body.android:not(.compact) #advHome{margin-top:4px}
         <button id="bHammer" title="Nombre de marteaux (0 à 2). Suivi automatique ; touche pour corriger si besoin.">Marteaux : 1</button>
         <button id="bStar" title="Étoile : une par partie. Suivi automatique ; touche pour corriger si besoin.">Étoile : disponible</button>
         <button id="bRotCal" hidden title="Mode auto : clique une fois sur le bouton de rotation du jeu">Auto · bouton de rotation</button>
+        <button id="bAutoTest" hidden title="La souris se pose sur des points du jeu, sans cliquer : vérifie qu'elle vise juste">Auto · test souris</button>
         <button id="bAuto" hidden title="Mode auto : la souris joue le coup conseillé. Pour l'arrêter : ce bouton, ou la souris dans le coin haut-gauche de l'écran.">Auto : arrêté</button>
         <button id="bGoal" title="Normal : le réglage le plus testé. Rapide : pousse plus fort vers les gros niveaux, N10 en environ 15 % de tours en moins en simulation. Fusions de 5 : prépare deux paires de même niveau autour d une case vide, comme le schéma du guide (même réussite en simulation, N10 un peu plus tard).">Mode : normal</button>
       </div>
@@ -1621,10 +1622,18 @@ $('boardCv').onclick=e=>{const cv=$('boardCv'),r=cv.getBoundingClientRect(),x=(e
 /* --- mode auto (PC) : fusion_auto.py sert cette page et bouge la souris --- */
 // le coup est joué seulement sur une lecture complète ; marteau et étoile : l'auto s'arrête et sonne, le joueur décide
 let AUTO=false,autoHelper=false,autoBusy=false,autoSig=null,autoTries=0,autoRot=0,autoWatch=null;
-function updAuto(){$('bAuto').hidden=$('bRotCal').hidden=!autoHelper;$('bAuto').disabled=!(cfg&&cfg.rot);
+function updAuto(){$('bAuto').hidden=$('bRotCal').hidden=$('bAutoTest').hidden=!autoHelper;$('bAuto').disabled=!(cfg&&cfg.rot);
   $('bAuto').textContent=AUTO?'Auto : en marche (arrêter)':'Auto : arrêté';$('bAuto').classList.toggle('primary',AUTO);}
 function setAuto(v,msg){AUTO=v;autoSig=null;autoTries=0;autoRot=0;clearTimeout(autoWatch);updAuto();if(msg)setStatus(msg,!v);if(v){solvedSig=null;lastSig=null;}}
 if(location.protocol.startsWith('http'))fetch('/ping').then(r=>r.ok&&r.text()).then(t=>{if(t==='fusion-auto'){autoHelper=true;updAuto();}}).catch(()=>{});
+$('bAutoTest').onclick=async()=>{if(!cfg){setStatus('Calibre d\'abord.',true);return;}
+  const g=boardGeom(cfg),pts=[[g.centers[0],'case en haut à gauche'],[g.centers[g.centers.length-1],'case en bas à droite']];
+  const r=lastImg&&lastImg.width===cfg.w?readAll(lastImg,cfg,levels,smallRefs):null;
+  if(r&&r.curTiles.length)r.curTiles.forEach((t,i)=>pts.push([[t.cx,t.cy],'pièce actuelle, tuile '+(i+1)]));
+  if(cfg.rot)pts.push([cfg.rot,'bouton de rotation']);
+  setStatus('Test : la souris va se poser sur '+pts.map(p=>p[1]).join(', ')+'. Regarde si elle tombe pile dessus.');
+  try{await autoSend(pts.map(([[x,y],label])=>({type:'show',x,y,label})));setStatus('Test fini. La souris tombait-elle pile sur chaque point ? (le terminal montre les coordonnées)');}
+  catch(e){setStatus('Test impossible : '+e.message,true);}};
 $('bRotCal').onclick=()=>openOverlay('rot','Clique au centre du bouton de rotation du jeu (les flèches rondes).');
 $('bAuto').onclick=()=>setAuto(!AUTO,AUTO?'Auto arrêté.':'Auto en marche : ne touche plus la souris. Pour arrêter : bouton « Auto », ou souris dans le coin haut-gauche de l\'écran.');
 let beepCtx=null;
