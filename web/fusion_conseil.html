@@ -1259,7 +1259,7 @@ $('bPause').onclick=()=>{paused=!paused;$('bPause').textContent=paused?'Reprendr
 
 /* --- lecture + conseil --- */
 function process(img){
-  if(paused||!cfg||!$('ov').hidden)return;
+  if(paused||!cfg||!$('ov').hidden||autoBusy)return;
   if(img.width!==cfg.w||img.height!==cfg.h){$('rot').textContent='—';$('info').textContent='La taille de la fenêtre du jeu a changé : recalibre.';$('info').className='err';return;}
   const t0=performance.now();
   const T=curGame&&curGame.turns,oldM=T&&T.length>=2?T[T.length-2].m:0;
@@ -1627,6 +1627,7 @@ function updAuto(){$('bAuto').hidden=$('bRotCal').hidden=$('bAutoTest').hidden=!
 function setAuto(v,msg){AUTO=v;autoSig=null;autoTries=0;autoRot=0;clearTimeout(autoWatch);updAuto();if(msg)setStatus(msg,!v);if(v){solvedSig=null;lastSig=null;}}
 if(location.protocol.startsWith('http'))fetch('/ping').then(r=>r.ok&&r.text()).then(t=>{if(t==='fusion-auto'){autoHelper=true;updAuto();}}).catch(()=>{});
 $('bAutoTest').onclick=async()=>{if(!cfg){setStatus('Calibre d\'abord.',true);return;}
+  if(cfg.dragOff){delete cfg.dragOff;store.set('cfg',cfg);}   // le décalage du glisser sera remesuré au prochain coup
   const g=boardGeom(cfg),pts=[[g.centers[0],'case en haut à gauche'],[g.centers[g.centers.length-1],'case en bas à droite']];
   const r=lastImg&&lastImg.width===cfg.w?readAll(lastImg,cfg,levels,smallRefs):null;
   if(r&&r.curTiles.length)r.curTiles.forEach((t,i)=>pts.push([[t.cx,t.cy],'pièce actuelle, tuile '+(i+1)]));
@@ -1642,6 +1643,26 @@ function autoAlert(what){if(!AUTO)return;beep();setStatus(`Auto en attente : ${w
 async function autoSend(actions){
   const res=await fetch('/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({w:cfg.w,h:cfg.h,actions})});
   const j=await res.json().catch(()=>({ok:false,err:'réponse illisible'}));if(!j.ok)throw new Error(j.err||'erreur');}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// mesure : on tient la pièce au-dessus de sa case, on repère où le jeu l'affiche (pixels changés), et on corrige la pose
+async function measureDrag(g,tiles,tx,ty){
+  const pre=lastImg;if(!pre||pre.width!==cfg.w)throw new Error('pas d\'image du jeu');
+  const G=boardGeom(cfg),dx=(cfg.br[0]-cfg.tl[0])/4,dy=(cfg.br[1]-cfg.tl[1])/4;
+  await autoSend([{type:'grab',x1:g.t.cx,y1:g.t.cy,x2:tx,y2:ty}]);
+  await sleep(600);const img=lastImg;
+  const R=[cfg.tl[0]-dx,cfg.tl[1]-3.2*dy,cfg.br[0]+dx,cfg.br[1]+dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
+  let sx=0,sy=0,n=0;const A=pre.data,B=img.data,W=img.width;
+  for(let y=Math.max(0,R[1]);y<Math.min(img.height,R[3]);y+=2)for(let x=Math.max(0,R[0]);x<Math.min(W,R[2]);x+=2){
+    if(inR(x,y,cfg.cur)||inR(x,y,cfg.next))continue;const i=(y*W+x)*4;
+    if(Math.abs(A[i]-B[i])+Math.abs(A[i+1]-B[i+1])+Math.abs(A[i+2]-B[i+2])>90){sx+=x;sy+=y;n++;}}
+  const mx=tiles.reduce((a,x)=>a+x.t.cx,0)/tiles.length,my=tiles.reduce((a,x)=>a+x.t.cy,0)/tiles.length;
+  const tray=tiles.map(x=>x.t.size).sort((a,b)=>a-b)[tiles.length>>1],k=G.size/tray;
+  if(n<(0.25*G.size*G.size)/4*tiles.length){await autoSend([{type:'release',x:g.t.cx,y:g.t.cy}]);throw new Error('pièce tenue introuvable à l\'écran (réessaie, jeu bien visible)');}
+  const fx=sx/n,fy=sy/n,dgx=fx+k*(g.t.cx-mx),dgy=fy+k*(g.t.cy-my);
+  cfg.dragOff=[Math.round(dgx-tx),Math.round(dgy-ty)];store.set('cfg',cfg);
+  setStatus(`Décalage de la pièce mesuré : ${cfg.dragOff[0]} px, ${cfg.dragOff[1]} px. Pose corrigée.`);
+  await autoSend([{type:'release',x:tx-cfg.dragOff[0],y:ty-cfg.dragOff[1]},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}]);
+}
 async function autoPlay(r,best,warn){
   if(!AUTO||autoBusy||!cfg||!cfg.rot)return;
   if(r.unknown.length){setStatus('Auto en attente : objet non reconnu sur le plateau.',true);return;}
@@ -1656,8 +1677,11 @@ async function autoPlay(r,best,warn){
     const mx=tiles.reduce((a,x)=>a+x.t.cx,0)/tiles.length,my=tiles.reduce((a,x)=>a+x.t.cy,0)/tiles.length;
     const g=tiles.reduce((a,x)=>Math.hypot(x.t.cx-mx,x.t.cy-my)<Math.hypot(a.t.cx-mx,a.t.cy-my)?x:a);
     const [tx,ty]=boardGeom(cfg).centers[best.idx[g.n]];
+    // le jeu affiche la pièce décalée par rapport à la souris (au-dessus, comme sous un doigt) : décalage mesuré au 1er coup
+    if(!cfg.dragOff){autoBusy=true;try{await measureDrag(g,tiles,tx,ty);}catch(e){beep();setAuto(false,'Auto arrêté : '+e.message);}
+      finally{autoBusy=false;lastSig=null;solvedSig=null;}return;}
     // puis la souris va se poser sur le bouton de rotation (zone non lue) pour ne cacher ni le plateau ni les pièces
-    actions=[{type:'drag',x1:g.t.cx,y1:g.t.cy,x2:tx,y2:ty},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}];}
+    actions=[{type:'drag',x1:g.t.cx,y1:g.t.cy,x2:tx-cfg.dragOff[0],y2:ty-cfg.dragOff[1]},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}];}
   autoBusy=true;
   try{await autoSend(actions);setStatus(best.k?`Auto : rotation ×${best.k}.`:'Auto : pièce posée.');}
   catch(e){beep();setAuto(false,'Auto arrêté : '+e.message);}

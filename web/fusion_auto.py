@@ -105,6 +105,28 @@ def play(w, h, actions):
             print(f"  test {a.get('label', '')} : image ({a['x']:.0f},{a['y']:.0f}) -> écran ({x:.0f},{y:.0f})")
             pyautogui.moveTo(x, y, duration=0.3)
             time.sleep(1.2)
+        elif a["type"] == "grab":       # attrape la pièce et la tient au-dessus du point visé (mesure du décalage)
+            x1, y1 = conv(a["x1"], a["y1"])
+            x2, y2 = conv(a["x2"], a["y2"])
+            print(f"  mesure : pièce attrapée en ({x1:.0f},{y1:.0f}), tenue en ({x2:.0f},{y2:.0f})")
+            pyautogui.moveTo(x1, y1, duration=0.2)
+            time.sleep(0.1)
+            pyautogui.mouseDown(x1, y1)
+            time.sleep(0.25)
+            pyautogui.moveTo(x1 + 4, y1 - 4, duration=0.05)
+            for i in range(1, 26):
+                t = i / 25
+                pyautogui.moveTo(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, duration=0.015)
+        elif a["type"] == "release":    # amène la pièce tenue sur le point corrigé et la lâche
+            x, y = conv(a["x"], a["y"])
+            cx, cy = pyautogui.position()
+            print(f"  pose corrigée : souris en ({x:.0f},{y:.0f})")
+            for i in range(1, 16):
+                t = i / 15
+                pyautogui.moveTo(cx + (x - cx) * t, cy + (y - cy) * t, duration=0.015)
+            time.sleep(0.25)
+            pyautogui.mouseUp(x, y)
+            time.sleep(random.uniform(0.9, 1.2))
         elif a["type"] == "drag":
             x1, y1 = conv(jitter(a["x1"], 2), jitter(a["y1"], 2))
             x2, y2 = conv(jitter(a["x2"], 2), jitter(a["y2"], 2))
