@@ -29,6 +29,7 @@ except Exception:
 
 try:
     import mss
+    import mss.tools
     import pyautogui
 except ImportError:
     print("Il manque des modules. Tape dans un terminal :  py -m pip install pyautogui mss")
@@ -85,6 +86,21 @@ def to_screen(w, h):
     raise RuntimeError("fenêtre du jeu introuvable (partage plutôt l'écran entier)")
 
 
+def snap(name, w, h, conv):
+    """Photo de contrôle de la fenêtre du jeu, enregistrée à côté de ce programme (avec la position de la souris)."""
+    try:
+        x0, y0 = conv(0, 0)
+        x1, y1 = conv(w, h)
+        with (mss.MSS() if hasattr(mss, "MSS") else mss.mss()) as m:
+            img = m.grab({"left": int(x0), "top": int(y0), "width": int(x1 - x0), "height": int(y1 - y0)})
+            path = os.path.join(HERE, name)
+            mss.tools.to_png(img.rgb, img.size, output=path)
+        mx, my = pyautogui.position()
+        print(f"  photo {name} (souris à l'écran en {mx},{my})")
+    except Exception as e:
+        print("  photo impossible :", e)
+
+
 def jitter(v, a=3):
     return v + random.uniform(-a, a)
 
@@ -109,6 +125,7 @@ def play(w, h, actions):
             x1, y1 = conv(a["x1"], a["y1"])
             x2, y2 = conv(a["x2"], a["y2"])
             print(f"  mesure : pièce attrapée en ({x1:.0f},{y1:.0f}), tenue en ({x2:.0f},{y2:.0f})")
+            snap("controle_1_avant.png", w, h, conv)
             pyautogui.moveTo(x1, y1, duration=0.2)
             time.sleep(0.1)
             pyautogui.mouseDown(x1, y1)
@@ -117,6 +134,10 @@ def play(w, h, actions):
             for i in range(1, 26):
                 t = i / 25
                 pyautogui.moveTo(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, duration=0.015)
+            time.sleep(0.3)
+            snap("controle_2_tenue.png", w, h, conv)
+            time.sleep(0.5)
+            snap("controle_3_tenue.png", w, h, conv)
         elif a["type"] == "release":    # amène la pièce tenue sur le point corrigé et la lâche
             x, y = conv(a["x"], a["y"])
             cx, cy = pyautogui.position()
