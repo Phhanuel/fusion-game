@@ -652,7 +652,8 @@ function tileAt(img,x,y){
   return ts.length?ts.reduce((a,b)=>b.w<a.w?b:a):null;
 }
 $('ovOk').onclick=()=>{
-  if(!draftCfg)return;cfg=draftCfg;store.set('cfg',cfg);closeOverlay();
+  if(!draftCfg)return;if(cfg&&cfg.rot&&cfg.w===draftCfg.w&&cfg.h===draftCfg.h)draftCfg.rot=cfg.rot;   // le bouton de rotation reste valable
+  cfg=draftCfg;store.set('cfg',cfg);closeOverlay();updAuto();
   setStatus('Calibrage enregistré. Le conseil se met à jour en direct.');
 };
 
@@ -707,6 +708,8 @@ $('boardCv').onclick=e=>{const cv=$('boardCv'),r=cv.getBoundingClientRect(),x=(e
 // le coup est joué seulement sur une lecture complète ; marteau et étoile : l'auto s'arrête et sonne, le joueur décide
 let AUTO=false,autoHelper=false,autoBusy=false,autoSig=null,autoTries=0,autoRot=0,autoWatch=null;
 function updAuto(){$('bAuto').hidden=$('bRotCal').hidden=$('bAutoTest').hidden=!autoHelper;$('bAuto').disabled=!(cfg&&cfg.rot);
+  $('bAuto').title=cfg&&cfg.rot?'La souris joue le coup conseillé. Pour l\'arrêter : ce bouton, ou la souris dans le coin haut-gauche de l\'écran.':'Clique d\'abord sur « Auto · bouton de rotation » puis sur le bouton aux flèches rondes du jeu.';
+  $('bRotCal').classList.toggle('primary',!!autoHelper&&!(cfg&&cfg.rot));
   $('bAuto').textContent=AUTO?'Auto : en marche (arrêter)':'Auto : arrêté';$('bAuto').classList.toggle('primary',AUTO);}
 function setAuto(v,msg){AUTO=v;autoSig=null;autoTries=0;autoRot=0;clearTimeout(autoWatch);updAuto();if(msg)setStatus(msg,!v);if(v){solvedSig=null;lastSig=null;}}
 if(location.protocol.startsWith('http'))fetch('/ping').then(r=>r.ok&&r.text()).then(t=>{if(t==='fusion-auto'){autoHelper=true;updAuto();}}).catch(()=>{});
