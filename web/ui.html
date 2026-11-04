@@ -219,8 +219,12 @@ function saveGames(){
   for(const g of games){if(g.turns){delete g.turns;if(store.set('games',games)&&store.set('curGame',curGame))return;}}
   setStatus("Stockage du navigateur plein : exporte tes parties puis efface-les.",true);
 }
+// plateau de la partie qui vient de se bloquer : tant qu'il reste affiché, ce n'est pas une nouvelle partie
+// (sinon chaque lecture de l'écran de fin créait une partie d'un tour : 25 fausses parties dans l'export du 4/11)
+let endedBoard=null;
 function endGame(reason){
   try{setHammer(true);setStar(true);setTarget(-1);}catch(e){}
+  endedBoard=reason==='bloqué'&&curGame&&curGame.turns.length?curGame.turns[curGame.turns.length-1].b:null;
   if(!curGame||!curGame.turns.length){curGame=null;saveGames();return;}
   const t=curGame.turns,f=t.filter(x=>x.f!==undefined);
   curGame.end=Date.now();curGame.reason=reason;curGame.max=Math.max(curGame.max||0,maxReached);
@@ -358,6 +362,7 @@ function trackPieces(r){
   else{const rel=r.board.filter(l=>l>0&&l<=MAXL);
     if(maxReached>=5&&!r.board.some(l=>l>MAXL)&&rel.length<=4&&Math.max(0,...rel,...r.cur.map(p=>p[2]))<=3){endGame('nouvelle partie');setMax(0);}}
   const lastT=curGame&&curGame.turns[curGame.turns.length-1];
+  if(!curGame&&endedBoard){if(bstr(r.board)===endedBoard){prevBoard=r.board;return;}endedBoard=null;}
   const fresh=!lastT||lastT.b!==bstr(r.board);     // un tour = un nouveau plateau (évite les doublons)
   // marteau utilisé dans le jeu : une seule relique disparaît et rien d'autre ne change
   // (une pose ajoute toujours au moins une relique, même avec fusion) → le marteau passe à « utilisé » tout seul
