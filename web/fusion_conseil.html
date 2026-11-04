@@ -1297,7 +1297,12 @@ function trackPieces(r){
   if(fresh&&lastT&&lastT.hamAfter&&lastT.hamAfter===bstr(r.board)&&lastT.hammer===undefined&&hammerOK){
     setHammer(false);setStatus('Marteau utilisé : il en reste '+hammers+'.');lastT.hammer=-1;delete lastT.adv;delete lastT.f;}
   if(fresh&&prevBoard&&lastT&&starOK){const d=r.board.map((l,i)=>l!==prevBoard[i]?i:-1).filter(i=>i>=0);
-    if((lastT.starAfter&&lastT.starAfter===bstr(r.board))||(d.length===1&&prevBoard[d[0]]>0&&r.board[d[0]]===prevBoard[d[0]]+1)){
+    // étoile utilisée sans conseil : une relique +1 (avec la fusion qu'elle déclenche) donne exactement le nouveau plateau,
+    // et la pièce actuelle n'a pas changé (pas de pose) ; avant, seule une relique +1 sans fusion était reconnue
+    const starAt=()=>{if(lastT.c!==pieceKey(r.cur))return false;const nb=bstr(r.board);
+      for(let i=0;i<N;i++){const L=prevBoard[i];if(!L||L>8)continue;const b0=prevBoard.slice();b0[i]=0;
+        if(bstr(resolve(b0,{idx:[i],shape:[[0,0,L+1]],k:0},0).b)===nb)return true;}return false;};
+    if((lastT.starAfter&&lastT.starAfter===bstr(r.board))||(d.length===1&&prevBoard[d[0]]>0&&r.board[d[0]]===prevBoard[d[0]]+1)||(r.cur.length&&!r.curUnknown&&starAt())){
       setStar(false);lastT.star=1;delete lastT.adv;delete lastT.f;setStatus('Étoile utilisée.');}}
   if(fresh&&r.cur.length&&!r.curUnknown){learnSmall(r);recordTurn(r);}
   else if(!fresh&&lastT&&r.cur.length&&!r.curUnknown){
@@ -1412,6 +1417,8 @@ function finish(r,ms,warn,trash,out,t0){
   $('info').className=warn.length?'err':'';
   if(best.newDead.length)lines.push('⚠ Ce coup crée le premier N'+(best.newDead[best.newDead.length-1]+4)+' : '+best.newDead.map(l=>'N'+l).join(', ')+' ne sortira plus');
   if(trash.length)lines.push('Poubelle (ne fusionnera plus) : '+trash.map(l=>'N'+l).join(', '));
+  // étoile : dans 9 parties sur 19 (export du 4/11), un N8 a touché deux N9 alors que l'étoile avait déjà servi
+  if(starOK&&r.board.some(l=>l>=8&&l<=9))lines.push('★ Garde l\'étoile pour le N10 : N8 qui touche deux N9 (l\'appli te le dira).');
   if(TARGET>=0){const c=CELLS[TARGET];lines.push(`◎ Case cible : colonne ${c.c+1}, ligne ${c.row+1} (prochain N${TARGET_L} ou plus). Touche-la encore pour changer le niveau, puis pour l'enlever.`);}
   $('info').textContent=lines.concat(warn).join('\n');
   drawPiece(best.shape);drawBoard(r.board,best,undefined,best.uncertain&&best.gap>20?best.bestAt:undefined);
