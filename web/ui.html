@@ -742,22 +742,26 @@ async function measureDrag(g,tiles,tx,ty){
   const t0=performance.now();let seen=0,last=lastImg;
   while(performance.now()-t0<2500&&seen<3){await sleep(120);if(lastImg!==last){last=lastImg;seen++;}}
   const img=lastImg;
-  // pixels changés dans tout le panneau de la forge (hors pièces et pièce suivante), grosse marge vers le haut
-  const R=[cfg.tl[0]-1.5*dx,0,cfg.br[0]+1.5*dx,cfg.br[1]+1.2*dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
+  // pixels changés sur le plateau et autour (pas au-dessus : la scène animée du jeu fausserait la mesure), hors pièces
+  const R=[cfg.tl[0]-1.2*dx,cfg.tl[1]-1.2*dy,cfg.br[0]+1.2*dx,cfg.br[1]+1.2*dy].map(Math.round),inR=(x,y,z)=>x>=z[0]&&x<=z[2]&&y>=z[1]&&y<=z[3];
   const ex=z=>[z[0]-8,z[1]-8,z[2]+8,z[3]+8],cur=ex(cfg.cur),nxt=ex(cfg.next);
-  let sx=0,sy=0,n=0;const A=pre.data,B=img.data,W=img.width;
+  const xs=[],ys=[];let n=0;const A=pre.data,B=img.data,W=img.width;
   for(let y=Math.max(0,R[1]);y<Math.min(img.height,R[3]);y+=2)for(let x=Math.max(0,R[0]);x<Math.min(W,R[2]);x+=2){
     if(inR(x,y,cur)||inR(x,y,nxt))continue;const i=(y*W+x)*4;
-    if(Math.abs(A[i]-B[i])+Math.abs(A[i+1]-B[i+1])+Math.abs(A[i+2]-B[i+2])>80){sx+=x;sy+=y;n++;}}
+    if(Math.abs(A[i]-B[i])+Math.abs(A[i+1]-B[i+1])+Math.abs(A[i+2]-B[i+2])>80){xs.push(x);ys.push(y);n++;}}
   const mx=tiles.reduce((a,x)=>a+x.t.cx,0)/tiles.length,my=tiles.reduce((a,x)=>a+x.t.cy,0)/tiles.length;
   const tray=tiles.map(x=>x.t.size).sort((a,b)=>a-b)[tiles.length>>1],k=G.size/tray;
   const need=Math.round(0.15*G.size*G.size/4*tiles.length);
   if(seen<1||n<need){await autoSend([{type:'release',x:g.t.cx,y:g.t.cy}]);
     throw new Error(`pièce tenue introuvable à l'écran (${seen} image(s) neuve(s), ${n} points changés sur ${need} attendus). Garde la page visible, non recouverte.`);}
-  const fx=sx/n,fy=sy/n,dgx=fx+k*(g.t.cx-mx),dgy=fy+k*(g.t.cy-my);
-  cfg.dragOff=[Math.round(dgx-hx),Math.round(dgy-hy)];store.set('cfg',cfg);
+  // médiane : quelques pixels animés ailleurs ne déplacent pas le résultat
+  const med=a=>a.sort((p,q)=>p-q)[a.length>>1],fx=med(xs),fy=med(ys),dgx=fx+k*(g.t.cx-mx),dgy=fy+k*(g.t.cy-my);
+  const off=[Math.round(dgx-hx),Math.round(dgy-hy)];
+  if(Math.abs(off[0])>1.5*dx||off[1]<-4.5*dy||off[1]>1.5*dy){await autoSend([{type:'release',x:g.t.cx,y:g.t.cy}]);
+    throw new Error(`décalage mesuré invraisemblable (${off[0]} px, ${off[1]} px) : réessaie, la page bien visible`);}
+  cfg.dragOff=off;store.set('cfg',cfg);
   setStatus(`Décalage de la pièce mesuré : ${cfg.dragOff[0]} px, ${cfg.dragOff[1]} px (${n} points). Pose corrigée.`);
-  await autoSend([{type:'release',x:tx-cfg.dragOff[0],y:ty-cfg.dragOff[1]},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}]);
+  await autoSend([{type:'release',x:tx-cfg.dragOff[0],y:ty-cfg.dragOff[1],off:cfg.dragOff,cell:[tx,ty]},{type:'move',x:cfg.rot[0],y:cfg.rot[1]}]);
 }
 async function autoPlay(r,best,warn){
   if(!AUTO||autoBusy||!cfg||!cfg.rot)return;

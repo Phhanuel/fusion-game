@@ -120,6 +120,8 @@ def play(w, h, actions):
         elif a["type"] == "release":    # amène la pièce tenue sur le point corrigé et la lâche
             x, y = conv(a["x"], a["y"])
             cx, cy = pyautogui.position()
+            if "off" in a:
+                print(f"  décalage mesuré : {a['off'][0]} px, {a['off'][1]} px (case visée {a['cell'][0]:.0f},{a['cell'][1]:.0f} dans l'image)")
             print(f"  pose corrigée : souris en ({x:.0f},{y:.0f})")
             for i in range(1, 16):
                 t = i / 15
